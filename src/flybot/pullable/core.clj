@@ -9,17 +9,19 @@
   Query
   (-select
    [_ data]
-   (when key
-     (let [sub-data (get data key)]
-       {key
-        (if-let [children (seq children)]
-          (->> (map #(-select % sub-data) children)
-               (apply merge))
-          sub-data)}))))
+   (let [sub-data (if key (get data key) data)
+         v (if-let [children (seq children)]
+             (->> (map #(-select % sub-data) children)
+                  (apply merge))
+             sub-data)]
+     (if key {key v} v))))
 
 (defn query
   [qspec]
   (map->CoreQuery qspec))
+
+;;====================
+;; Pattern
 
 (defprotocol Queryable
   (-to-query

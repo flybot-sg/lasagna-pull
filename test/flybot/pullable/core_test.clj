@@ -5,10 +5,10 @@
 
 (deftest simple
   (let [data {:foo "bar" :baz {:foo2 3 :baz2 'ok}}]
-    (testing "empty query should always return empty"      
-      (is (= nil (sut/-select (sut/query {}) data))))
     (testing "query with a single key will just returns a single kv map"
       (is (= {:foo "bar"} (sut/-select (sut/query {:key :foo}) data))))
+    (testing "query with nil key but with children"
+      (is (= {:foo "bar"} (sut/-select (sut/query {:children [(sut/query {:key :foo})]}) data))))
     (testing "when query has children, it will pass sub data to them"
       (is (= {:baz {:foo2 3}} (sut/-select (sut/query {:key :baz :children [(sut/query {:key :foo2})]}) data)))
       (is (= {:baz {:foo2 3 :baz2 'ok}}
