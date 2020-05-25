@@ -5,16 +5,20 @@
    [q data]
    "select from data"))
 
-(defrecord CoreQuery [key children]
+(defrecord CoreQuery [key children not-found seq?]
   Query
   (-select
-   [_ data]
-   (let [sub-data (if key (get data key) data)
-         v (if-let [children (seq children)]
-             (->> (map #(-select % sub-data) children)
-                  (apply merge))
-             sub-data)]
-     (if key {key v} v))))
+    [_ data]
+    (let [sel-merge (fn [elem]
+                      (->> (map #(-select % elem) children)
+                           (apply merge)))
+          sub-data  (if key (get data key not-found) data)
+          v         (if (and (not= sub-data not-found) (seq children))
+                      (if seq?
+                        (map sel-merge sub-data)
+                        (sel-merge sub-data))
+                      sub-data)]
+      (if key {key v} v))))
 
 (defn query
   [qspec]
@@ -45,7 +49,8 @@
   (-to-query
     [this]
     (if-let [[k v] (first this)]
-      (assoc (-to-query v) :key k)
+      (-> (assoc (-to-query v) :key k)
+          (merge (dissoc this k)))
       (-to-query nil))))
 
 (defn pattern->query
