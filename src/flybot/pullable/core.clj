@@ -35,7 +35,9 @@
   Processor
   (-process
    [_ data children]
-   (select-merge data children)))
+   (if (seq children)
+     (select-merge data children)
+     data)))
 
 (defrecord SeqProcessor []
   Processor
@@ -88,9 +90,9 @@
   (-select
     [_ data]
     (let [sub-data  (if key (get data key ::not-found) data)
-          v         (if (seq children)
-                      (reduce (fn [d proc] (-process proc d children)) sub-data (vals processors))
-                      sub-data)]
+          v         (reduce (fn [d proc] (-process proc d children)) 
+                            sub-data
+                            (vals processors))]
       (if key {key v} v))))
 
 (defn query
@@ -109,6 +111,13 @@
    [queryable]
    "returns a Query of itself"))
 
+(defn options->processors
+  [options]
+  (->> (partition 2 options)
+       (map #(apply vector %))
+       (into (array-map))
+       (mk-processors)))
+
 (extend-protocol Queryable
   nil
   (-to-query
@@ -122,6 +131,11 @@
   (-to-query
    [this]
    (query {:children (map -to-query (.seq this))}))
+  clojure.lang.IPersistentList
+  (-to-query
+    [[v & options]]
+    (let [processors (options->processors options)]
+      (assoc (-to-query v) :processors processors)))
   clojure.lang.IPersistentMap
   (-to-query
     [this]
