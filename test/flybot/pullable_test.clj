@@ -20,7 +20,7 @@
       (is (= {:none 0} (sut/pull data ['(:none :not-found 0)]))))
     (testing "join with :seq key is an explicit seq, will pull over its element"
       (is (= {:map {:vec [{:int 5} {:int 8}]}}
-             (sut/pull data [{:map [{:vec [:int] :seq []}]}]))))
+             (sut/pull data [{:map {:vec :int :seq []}}]))))
     (testing ":limit and :offset will give a pagination"
       (is (= {:map {:vec [{:int 8}]}}
              (sut/pull data {:map [{:vec [:int] :seq [1 1]}]}))))

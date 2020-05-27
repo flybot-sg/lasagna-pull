@@ -168,7 +168,7 @@
      (-to-query (expand-depth depth (dissoc this :depth)))
      (if-let [[k v] (first this)]
        (let [processors (mk-processors (dissoc this k))]
-         (assoc (-to-query v) :key k :processors processors))
+         (assoc (-to-query (if (vector? v) v [v])) :key k :processors processors))
        (-to-query nil)))))
 
 (defn pattern->query
