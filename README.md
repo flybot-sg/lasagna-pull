@@ -1,4 +1,5 @@
 # Pullable, precisely select from deep data structure.
+[![Actions Status](https://github.com/robertluo/pullable/workflows/build/badge.svg)](https://github.com/robertluo/pullable/actions)
 
 ## Rational
 
