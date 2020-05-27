@@ -37,7 +37,8 @@
    [_ data children]
    (if (seq children)
      (select-merge data children)
-     data)))
+     (when (not= data ::ignore)
+       data))))
 
 (defrecord SeqProcessor []
   Processor
@@ -51,7 +52,9 @@
   Processor
   (-process
    [_ data _]
-   (if (= data ::not-found) default data)))
+   (if (= data ::not-found)
+     default
+     data)))
 
 ;;factory to create processors
 ;;
@@ -118,6 +121,13 @@
        (into (array-map))
        (mk-processors)))
 
+(defn expand-depth
+  [depth m]
+  (let [[k v] (first m)
+        d (let [v (dec depth)] (when (pos? v) v))
+        v (conj v (cond-> (assoc m :not-found ::ignore) d (assoc :depth d)))]
+    (assoc m k v)))
+
 (extend-protocol Queryable
   nil
   (-to-query
@@ -138,11 +148,14 @@
       (assoc (-to-query v) :processors processors)))
   clojure.lang.IPersistentMap
   (-to-query
-    [this]
-    (if-let [[k v] (first this)]
-      (let [processors (mk-processors (dissoc this k))]
-        (assoc (-to-query v) :key k :processors processors))
-      (-to-query nil))))
+   [this]
+   (if-let [depth (:depth this)]
+     ;;:depth is a special option, using rewrite to implement it
+     (-to-query (expand-depth depth (dissoc this :depth)))
+     (if-let [[k v] (first this)]
+       (let [processors (mk-processors (dissoc this k))]
+         (assoc (-to-query v) :key k :processors processors))
+       (-to-query nil)))))
 
 (defn pattern->query
   [ptn]

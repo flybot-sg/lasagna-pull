@@ -39,6 +39,10 @@
     (is (= {:bar 0}
            (sut/-select (sut/query {:key :bar} {:not-found 0}) {})))))
 
+(deftest expand-depth
+  (is (= {:a [:b {:a [:b] :depth 2 :seq? true :not-found ::sut/ignore}] :seq? true}
+         (sut/expand-depth 3 {:a [:b] :seq? true}))))
+
 (deftest pattern->query
   (testing "nil pattern makes an empty query"
     (is (= (sut/query {}) (sut/pattern->query nil))))
@@ -56,4 +60,12 @@
   (testing "map can have options which will be inside query"
     (is (= (sut/query {:key :a :children [(sut/query {:key :b})]} 
                       {:seq? true})
-           (sut/pattern->query {:a [:b] :seq? true})))))
+           (sut/pattern->query {:a [:b] :seq? true}))))
+  (testing "depth option will produce more children itself"
+    (is (= (sut/query {:key :a :children [(sut/query {:key :b})
+                                          (sut/query {:key :a
+                                                      :children [(sut/query {:key :b})]}
+                                                     {:not-found ::sut/ignore
+                                                      :seq? true})]}
+                      {:seq? true})
+           (sut/pattern->query {:a [:b] :depth 1 :seq? true})))))
