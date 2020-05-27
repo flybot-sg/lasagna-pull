@@ -134,12 +134,15 @@
        (into (array-map))
        (mk-processors)))
 
+(defn normalize [v]
+  (if (vector? v) v [v]))
+
 (defn expand-depth
   [depth m]
   (assert (pos? depth) "Depth must be a positive number")
   (let [[k v] (first m)
         d (let [v (dec depth)] (when (pos? v) v))
-        v (conj v (cond-> (assoc m :not-found ::ignore) d (assoc :depth d)))]
+        v (conj (normalize v) (cond-> (assoc m :not-found ::ignore) d (assoc :depth d)))]
     (assoc m k v)))
 
 (extend-protocol Queryable
@@ -168,7 +171,7 @@
      (-to-query (expand-depth depth (dissoc this :depth)))
      (if-let [[k v] (first this)]
        (let [processors (mk-processors (dissoc this k))]
-         (assoc (-to-query (if (vector? v) v [v])) :key k :processors processors))
+         (assoc (-to-query (normalize v)) :key k :processors processors))
        (-to-query nil)))))
 
 (defn pattern->query
