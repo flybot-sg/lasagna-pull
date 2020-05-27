@@ -1,4 +1,4 @@
-(ns flybot.pullable.core
+(ns robertluo.pullable.core
   "Implementation of pulling")
 
 ;; Single method protocol, record vs high order function

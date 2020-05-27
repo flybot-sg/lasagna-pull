@@ -1,6 +1,6 @@
-(ns flybot.pullable
+(ns robertluo.pullable
   (:require
-   [flybot.pullable.core :as impl]))
+   [robertluo.pullable.core :as impl]))
 
 (defn pull
   "Returns data from data using pattern ptn."

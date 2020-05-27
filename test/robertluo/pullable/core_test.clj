@@ -1,6 +1,6 @@
-(ns flybot.pullable.core-test
+(ns robertluo.pullable.core-test
   (:require
-   [flybot.pullable.core :as sut]
+   [robertluo.pullable.core :as sut]
    [clojure.test :refer [deftest testing is]]))
 
 (deftest query
