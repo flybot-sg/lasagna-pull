@@ -64,14 +64,16 @@
       (when (not= data ::ignore)
         data))))
 
-(defrecord SeqProcessor []
+(defrecord SeqProcessor [offset limit]
   Processor
   (-process
     [_ data children]
     (cond 
       (map? data)      (throw (ex-info "Map is not considered as a seq" {:data data}))
       (not (seq data)) (throw (ex-info "Not a seq" {:data data}))
-      :else            (map #(select-merge % children) data))))
+      :else            (cond->> (map #(select-merge % children) data)
+                         offset (drop offset)
+                         limit  (take limit)))))
 
 (defrecord NotFoundProcessor [default]
   Processor
@@ -99,11 +101,10 @@
   [[_ v]]
   [::not-found (NotFoundProcessor. v)])
 
-(defmethod option-create :seq?
-  [[_ seq?]]
-  (when seq?
-    ;; a seq processor will replace default core processor
-    [::core (SeqProcessor.)]))
+(defmethod option-create :seq
+  [[_ s]]
+  (let [[offset limit] s]
+    [::core (SeqProcessor. offset limit)]))
 
 (defn mk-processors
   "returns a creator array map for options kv"
@@ -135,6 +136,7 @@
 
 (defn expand-depth
   [depth m]
+  (assert (pos? depth) "Depth must be a positive number")
   (let [[k v] (first m)
         d (let [v (dec depth)] (when (pos? v) v))
         v (conj v (cond-> (assoc m :not-found ::ignore) d (assoc :depth d)))]

@@ -20,16 +20,16 @@
     (is (= [{:a 3 :b ::sut/not-found} {:a 8 :b 4}]
            (sut/-select (sut/query {:children [(sut/query {:key :a})
                                                (sut/query {:key :b})]}
-                                   {:seq? true})
+                                   {:seq []})
                         [{:a 3} {:a 8 :b 4}])))))
 
 (deftest mk-processors
   (testing "for empty options, create core option"
     (is (= {::sut/core (sut/->CoreProcessor)}
            (sut/mk-processors {}))))
-  (testing "for seq? option, create a seq processor"
-    (is (= {::sut/core (sut/->SeqProcessor)}
-           (sut/mk-processors {:seq? true}))))
+  (testing "for seq option, create a seq processor"
+    (is (= {::sut/core (sut/->SeqProcessor nil nil)}
+           (sut/mk-processors {:seq []}))))
   (testing "for not-found option, create a not found processor"
     (is (= {::sut/core (sut/->CoreProcessor) ::sut/not-found (sut/->NotFoundProcessor :foo)}
            (sut/mk-processors {:not-found :foo})))))
@@ -40,8 +40,8 @@
            (sut/-select (sut/query {:key :bar} {:not-found 0}) {})))))
 
 (deftest expand-depth
-  (is (= {:a [:b {:a [:b] :depth 2 :seq? true :not-found ::sut/ignore}] :seq? true}
-         (sut/expand-depth 3 {:a [:b] :seq? true}))))
+  (is (= {:a [:b {:a [:b] :depth 2 :seq [] :not-found ::sut/ignore}] :seq []}
+         (sut/expand-depth 3 {:a [:b] :seq []}))))
 
 (deftest pattern->query
   (testing "nil pattern makes an empty query"
@@ -59,13 +59,13 @@
            (sut/pattern->query '(:int :not-found 0)))))
   (testing "map can have options which will be inside query"
     (is (= (sut/query {:key :a :children [(sut/query {:key :b})]} 
-                      {:seq? true})
-           (sut/pattern->query {:a [:b] :seq? true}))))
+                      {:seq []})
+           (sut/pattern->query {:a [:b] :seq []}))))
   (testing "depth option will produce more children itself"
     (is (= (sut/query {:key :a :children [(sut/query {:key :b})
                                           (sut/query {:key :a
                                                       :children [(sut/query {:key :b})]}
                                                      {:not-found ::sut/ignore
-                                                      :seq? true})]}
-                      {:seq? true})
-           (sut/pattern->query {:a [:b] :depth 1 :seq? true})))))
+                                                      :seq []})]}
+                      {:seq []})
+           (sut/pattern->query {:a [:b] :depth 1 :seq []})))))
