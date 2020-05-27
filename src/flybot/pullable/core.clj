@@ -7,17 +7,6 @@
    [q data]
    "select from data"))
 
-;; If pulling encountered error, it will not throw exceptions, as this will break
-;; potentially correct part of query. Instead of it, it will have an error data structure
-;; in the value of this specific value.
-
-(defrecord PullError [type info])
-
-(defn error
-  "returns an pulling error with type (keyword) and info (a maps)"
-  [type info]
-  (->PullError type info))
-
 (defn select-merge
   [elem children]
   (->> (map #(-select % elem) children)
@@ -44,9 +33,9 @@
   Processor
   (-process
    [_ data children]
-   (if-let [data (seq data)]
-     (map #(select-merge % children) data)
-     (error ::unable-pull nil))))
+   (if (or (map? data) (not (seq data)))
+     (throw (ex-info "Not a seq" {:data data}))
+     (map #(select-merge % children) data))))
 
 (defrecord NotFoundProcessor [default]
   Processor
@@ -92,10 +81,13 @@
   Query
   (-select
     [_ data]
-    (let [sub-data  (if key (get data key ::not-found) data)
-          v         (reduce (fn [d proc] (-process proc d children)) 
-                            sub-data
-                            (vals processors))]
+    (let [v (try
+              (let [sub-data  (if key (get data key ::not-found) data)]
+                (reduce (fn [d proc] (-process proc d children))
+                        sub-data
+                        (vals processors)))
+              (catch Exception ex
+                #:error{:key key :message (ex-message ex)}))]
       (if key {key v} v))))
 
 (defn query
