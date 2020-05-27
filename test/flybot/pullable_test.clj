@@ -26,5 +26,5 @@
                             {:int 20 :recur [{:int 200 :recur [{:int 2000}]}]}]}}
              (sut/pull data [{:map [{:recur [:int] :seq? true :depth 2}]}]))))
     (testing "when pull data not as expected shape, it still can returns other part."
-      (is (= {:int 8 :map #:error{:key :map :message "Not a seq"}}
-             (sut/pull data [:int {:map [:int] :seq? true}]))))))
+      (let [exp (sut/pull data [:int {:map [:int] :seq? true}])]
+        (is (= [8 :map] ((juxt :int #(get-in % [:map :error/key])) exp)))))))

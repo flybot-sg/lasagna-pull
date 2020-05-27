@@ -1,18 +1,25 @@
 (ns flybot.pullable.core
   "Implementation of pulling")
 
+;; Single method protocol, record vs high order function
+;; - More readable, with documentation
+;; - Has built in equalty, easier to test
+
 (defprotocol Query
   "A query can return derived data from orignial data."
   (-select
    [q data]
    "select from data"))
 
-(defn select-merge
-  [elem children]
-  (->> (map #(-select % elem) children)
-       (apply merge)))
+(defprotocol Findable
+  "Abstraction of getable data"
+  :extend-via-metadata true
+  (-get
+   [findable k not-found]
+   "Get value from findable for key k, if not found, returns not-found"))
 
-;; Processor is an abstraction to allow further extending to support
+;; Processor is an abstraction to process a query,
+;; allow further extending to support
 ;; more query options
 
 (defprotocol Processor
@@ -20,30 +27,59 @@
   (-process
    [op data children]))
 
+;;=======================
+;; Implemention of query
+;; 
+
+(defrecord CoreQuery [key children processors ex-handler]
+  Query
+  (-select
+    [_ data]
+    (let [v (try
+              (let [sub-data (if key (-get data key ::not-found) data)]
+                (reduce (fn [d proc] (-process proc d children))
+                        sub-data
+                        (vals processors)))
+              (catch Exception ex
+                (let [err #:error{:key key :message (ex-message ex)}]
+                  ((or ex-handler identity) err))))]
+      (if key {key v} v))))
+
+(extend-protocol Findable
+  clojure.lang.ILookup
+  (-get [this k not-found]
+    (.valAt this k not-found)))
+
+(defn select-merge
+  [elem children]
+  (->> (map #(-select % elem) children)
+       (apply merge)))
+
 (defrecord CoreProcessor []
   Processor
   (-process
-   [_ data children]
-   (if (seq children)
-     (select-merge data children)
-     (when (not= data ::ignore)
-       data))))
+    [_ data children]
+    (if (seq children)
+      (select-merge data children)
+      (when (not= data ::ignore)
+        data))))
 
 (defrecord SeqProcessor []
   Processor
   (-process
-   [_ data children]
-   (if (or (map? data) (not (seq data)))
-     (throw (ex-info "Not a seq" {:data data}))
-     (map #(select-merge % children) data))))
+    [_ data children]
+    (cond 
+      (map? data)      (throw (ex-info "Map is not considered as a seq" {:data data}))
+      (not (seq data)) (throw (ex-info "Not a seq" {:data data}))
+      :else            (map #(select-merge % children) data))))
 
 (defrecord NotFoundProcessor [default]
   Processor
   (-process
-   [_ data _]
-   (if (= data ::not-found)
-     default
-     data)))
+    [_ data _]
+    (if (= data ::not-found)
+      default
+      data)))
 
 ;;factory to create processors
 ;;
@@ -73,22 +109,6 @@
   "returns a creator array map for options kv"
   [options]
   (->> (map option-create (merge {::core true} options)) (into (array-map))))
-
-;;=======================
-;; Implemention of query
-;; 
-(defrecord CoreQuery [key children processors]
-  Query
-  (-select
-    [_ data]
-    (let [v (try
-              (let [sub-data  (if key (get data key ::not-found) data)]
-                (reduce (fn [d proc] (-process proc d children))
-                        sub-data
-                        (vals processors)))
-              (catch Exception ex
-                #:error{:key key :message (ex-message ex)}))]
-      (if key {key v} v))))
 
 (defn query
   "returns a query object for query spec, i.e. qspec,
