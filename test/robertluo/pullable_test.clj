@@ -30,4 +30,7 @@
              (sut/pull data {:map {:recur :int :seq [] :depth 2}}))))
     (testing "when pull data not as expected shape, it still can returns other part."
       (let [exp (sut/pull data [:int {:map :int :seq []}])]
-        (is (= [8 :map] ((juxt :int #(get-in % [:map :error/key])) exp)))))))
+        (is (= [8 :map] ((juxt :int #(get-in % [:map :error/key])) exp)))))
+    (testing "can pull in a root sequence"
+      (is (= [{:int 8} {:int 8}]
+             (sut/pull [data data] '([:int] :seq [])))))))
