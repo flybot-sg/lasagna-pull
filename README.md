@@ -1,5 +1,6 @@
 # Pullable, precisely select from deep data structure.
 ![CI](https://github.com/robertluo/pullable/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/robertluo/pullable/branch/master/graph/badge.svg)](https://codecov.io/gh/robertluo/pullable)
 
 ## Rational
 
