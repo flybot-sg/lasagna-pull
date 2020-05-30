@@ -41,6 +41,10 @@ from the collection starting from index 10 (0 based), and take 20.
 
 If a value is not present in data, its value pulled will be `:robertluo.pullable.core/not-found` by default. However, you can specific it by using `:not-found 0` to change it.
 
+### `:with` option
+
+If a value is a function, you can pass `:with` arguments, it will apply these arguments to the function and return it.
+
 ## License
 Copyright © 2020 Robertluo
 

@@ -34,6 +34,14 @@
     (is (= {::sut/core (sut/->CoreProcessor) ::sut/not-found (sut/->NotFoundProcessor :foo)}
            (sut/mk-processors {:not-found :foo})))))
 
+(deftest with-option
+  (testing "for with option, try call function"
+    (is (= {:foo 2}
+           (sut/-select (sut/query {:key :foo} {:with [1]}) {:foo inc}))))
+  (testing "if it is not a function, with function will return an error"
+    (is (= {:foo #:error{:key :foo :value 1 :message "Not a function"}}
+           (sut/-select (sut/query {:key :foo} {:with [1]}) {:foo 1})))))
+
 (deftest not-found-option
   (testing "a query with :not-found specified will return it"
     (is (= {:bar 0}

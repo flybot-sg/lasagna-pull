@@ -10,7 +10,8 @@
                     :recur [{:int 10 :recur [{:int 100 :recur [{:int 1000}]}]}
                             {:int 20 :recur [{:int 200 :recur [{:int 2000 :recur [{:int 20000}]}]}]}]
                     :vec [{:int 5} {:int 8
-                                    :kw  :bar}]} }]
+                                    :kw  :bar}]}
+              :fn str}]
     (testing "simple pull pattern"
       (is (= {:int 8} (sut/pull data :int))))
     (testing "complex pattern"
@@ -33,4 +34,7 @@
         (is (= [8 :map] ((juxt :int #(get-in % [:map :error/key])) exp)))))
     (testing "can pull in a root sequence"
       (is (= [{:int 8} {:int 8}]
-             (sut/pull [data data] '([:int] :seq [])))))))
+             (sut/pull [data data] '([:int] :seq [])))))
+    (testing "pull with a :with option, will call the value as a function"
+      (is (= {:fn "hello world"}
+             (sut/pull data '(:fn :with ["hello" " " "world"])))))))

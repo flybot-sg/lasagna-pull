@@ -41,7 +41,7 @@
                         sub-data
                         (vals processors)))
               (catch Exception ex
-                (let [err #:error{:key key :message (ex-message ex)}]
+                (let [err (merge (ex-data ex) #:error{:key key :message (ex-message ex)})]
                   ((or ex-handler identity) err))))]
       (if key {key v} v))))
 
@@ -54,6 +54,9 @@
   [elem children]
   (->> (map #(-select % elem) children)
        (apply merge)))
+
+(defn error [msg value]
+  (throw (ex-info msg {:error/value value})))
 
 (defrecord CoreProcessor []
   Processor
@@ -69,11 +72,19 @@
   (-process
     [_ data children]
     (cond 
-      (map? data)      (throw (ex-info "Map is not considered as a seq" {:data data}))
-      (not (seq data)) (throw (ex-info "Not a seq" {:data data}))
+      (map? data)      (error "Map is not considered as a seq" data)
+      (not (seq data)) (error "Not a seq" data)
       :else            (cond->> (map #(select-merge % children) data)
                          offset (drop offset)
                          limit  (take limit)))))
+
+(defrecord WithProcessor [args]
+  Processor
+  (-process
+   [_ data _]
+   (if (fn? data)
+     (apply data args)
+     (error "Not a function" data))))
 
 (defrecord NotFoundProcessor [default]
   Processor
@@ -105,6 +116,10 @@
   [[_ s]]
   (let [[offset limit] s]
     [::core (SeqProcessor. offset limit)]))
+
+(defmethod option-create :with
+  [[_ args]]
+  [::with (WithProcessor. args)])
 
 (defn mk-processors
   "returns a creator array map for options kv"
