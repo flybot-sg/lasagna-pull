@@ -11,7 +11,8 @@
                             {:int 20 :recur [{:int 200 :recur [{:int 2000 :recur [{:int 20000}]}]}]}]
                     :vec [{:int 5} {:int 8
                                     :kw  :bar}]}
-              :fn str}]
+              :fn str
+              :fn2 (fn [i] {:val (inc i)})}]
     (testing "simple pull pattern"
       (is (= {:int 8} (sut/pull data :int))))
     (testing "complex pattern"
@@ -37,4 +38,7 @@
              (sut/pull [data data] '([:int] :seq [])))))
     (testing "pull with a :with option, will call the value as a function"
       (is (= {:fn "hello world"}
-             (sut/pull data '(:fn :with ["hello" " " "world"])))))))
+             (sut/pull data '(:fn :with ["hello" " " "world"])))))
+    (testing ":with options can be pulled as if it is a normal one"
+      (is (= {:fn2 {:val 8}}
+             (sut/pull data '(:fn2 :with [7])))))))

@@ -173,7 +173,7 @@
   (-to-query
    [this]
    (query {:children (map -to-query (.seq this))}))
-  clojure.lang.IPersistentList
+  java.util.List ;;Clojure list? definition is IPersistentList, but Transit library use Java list, what a mess!
   (-to-query
     [[v & options]]
     (let [processors (options->processors options)]
