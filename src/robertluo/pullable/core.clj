@@ -39,7 +39,7 @@
               (let [sub-data (if key (-get data key ::not-found) data)]
                 (reduce (fn [d proc] (-process proc d children))
                         sub-data
-                        (vals processors)))
+                        processors))
               (catch Exception ex
                 (let [err (merge (ex-data ex) #:error{:key key :message (ex-message ex)})]
                   ((or ex-handler identity) err))))]
@@ -129,4 +129,5 @@
                          :processors (->> (:options qspec)
                                           (cons [::core (CoreProcessor.)])
                                           (map option-create)
-                                          (into (array-map))))))
+                                          (into (array-map))
+                                          vals))))
