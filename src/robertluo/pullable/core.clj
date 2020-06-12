@@ -23,7 +23,7 @@
 ;; more query options
 
 (defprotocol Processor
-  "A processor can process data with data and a sequence of children query"
+  "A processor can process data after it processed"
   (-process
    [op data children]))
 

@@ -1,4 +1,5 @@
-(ns robertluo.pullable.pattern)
+(ns robertluo.pullable.pattern
+  "defines a pattern expression language to write query easily")
 
 ;;====================
 ;; Pattern
@@ -25,18 +26,25 @@
   (-to-query
     [_]
     {})
+
   Object
   (-to-query
     [this]
     {:key this})
+
+  ;;vector defines an empty query contains children
   clojure.lang.PersistentVector
   (-to-query
    [this]
     {:children (map -to-query (.seq this))})
-  java.util.List ;;Clojure list? definition is IPersistentList, but Transit library use Java list, what a mess!
+
+  ;;Clojure list? definition is IPersistentList, but Transit library use Java list, what a mess!
+  java.util.List
   (-to-query
     [[v & options]]
     (assoc (-to-query v) :options (partition 2 options)))
+
+  ;;Map to specific key, children and options at same time
   clojure.lang.IPersistentMap
   (-to-query
    [this]
