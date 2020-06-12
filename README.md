@@ -45,6 +45,19 @@ If a value is not present in data, its value pulled will be `:robertluo.pullable
 
 If a value is a function, you can pass `:with` arguments, it will apply these arguments to the function and return it.
 
+### `:batch` option
+
+If you want to call `:with` multiple times, `:batch` option will return a sequence of calling returning value also in a sequence.
+
+## Error Handling
+
+When an exception raised when pulling a key, the corresponding value will be an error map like:
+
+`{:error/key :key-of-error, :error/message "the exception message", :error/data {...}}`
+
+You can provide an global exception handler function which will receive this error map as the argument, and the return value will be the value instead. A common practice might be logging.
+
+
 ## License
 Copyright © 2020 Robertluo
 

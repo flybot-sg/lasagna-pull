@@ -30,6 +30,10 @@
    `:seq` option also can specific offset and limit. e.g. `:seq [10 20]` means pulling
    from the collection starting from index 10 (0 based), and take 20.
    "
-  [data ptn]
-  (when-let [q (some-> (ptn/pattern->query ptn) core/query)]
-    (core/-select q data)))
+  ([data ptn]
+   (pull data ptn nil))
+  ([data ptn ex-handler]
+   (when-let [q (some-> (ptn/pattern->query ptn)
+                        (assoc :ex-handler ex-handler)
+                        core/query)]
+     (core/-select q data))))

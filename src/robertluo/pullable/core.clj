@@ -131,11 +131,12 @@
   [::batch (BatchProcessor. calls)])
 
 (defn query
-  [qspec]
+  [{:keys [options children ex-handler] :as qspec}]
   (map->CoreQuery (assoc qspec
-                         :children (->> (:children qspec)
-                                        (map query))
-                         :processors (->> (:options qspec)
+                         :children (cond->> children
+                                     ex-handler (map #(assoc % :ex-handler ex-handler))
+                                     true       (map query))
+                         :processors (->> options
                                           (cons [::core (CoreProcessor.)])
                                           (map option-create)
                                           (into (array-map))
