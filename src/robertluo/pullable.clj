@@ -1,6 +1,7 @@
 (ns robertluo.pullable
   (:require
-   [robertluo.pullable.core :as impl]))
+   [robertluo.pullable.core :as core]
+   [robertluo.pullable.pattern :as ptn]))
 
 (defn pull
   "Returns pulling result from data using pattern ptn.
@@ -30,5 +31,5 @@
    from the collection starting from index 10 (0 based), and take 20.
    "
   [data ptn]
-  (when-let [q (impl/pattern->query ptn)]
-    (impl/-select q data)))
+  (when-let [q (some-> (ptn/pattern->query ptn) core/query)]
+    (core/-select q data)))
