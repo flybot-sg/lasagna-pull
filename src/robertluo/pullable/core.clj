@@ -86,6 +86,11 @@
      (apply data args)
      (error "Not a function" data))))
 
+(defrecord BatchProcessor [calls]
+  Processor
+  (-process [_ data children]
+    (map #(-process (WithProcessor. %) data children) calls)))
+
 (defrecord NotFoundProcessor [default]
   Processor
   (-process
@@ -120,6 +125,10 @@
 (defmethod option-create :with
   [[_ args]]
   [::with (WithProcessor. args)])
+
+(defmethod option-create :batch
+  [[_ calls]]
+  [::batch (BatchProcessor. calls)])
 
 (defn query
   [qspec]

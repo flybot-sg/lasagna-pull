@@ -39,6 +39,9 @@
     (testing "pull with a :with option, will call the value as a function"
       (is (= {:fn "hello world"}
              (sut/pull data '(:fn :with ["hello" " " "world"])))))
-    (testing ":with options can be pulled as if it is a normal one"
+    (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
-             (sut/pull data '(:fn2 :with [7])))))))
+             (sut/pull data '(:fn2 :with [7])))))
+    (testing ":batch option will batch :with calls"
+      (is (= {:fn2 [{:val 8} {:val 9}]}
+             (sut/pull data '(:fn2 :batch [[7] [8]])))))))
