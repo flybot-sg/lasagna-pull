@@ -10,7 +10,7 @@
 
 (defn simple-query [k]
   (fn [m]
-    [(SimpleKey. k) (get m k)]))
+    [(SimpleKey. k) (get m k ::none)]))
 
 (defn join-query
   [key-query val-query]
