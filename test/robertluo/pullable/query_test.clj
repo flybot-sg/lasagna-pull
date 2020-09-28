@@ -6,7 +6,10 @@
 (deftest SimpleQuery
   (testing "transform"
     (is (= {:a 3}
-           (sut/-transform (sut/->SimpleQuery :a) {} {:a 3 :b 5})))))
+           (sut/-transform (sut/->SimpleQuery :a) {} {:a 3 :b 5}))))
+  (testing "Sequence transform"
+    (is (= [{:a 3} {:a 4} {:a ::sut/none}]
+           (sut/-transform (sut/->SimpleQuery :a) [] [{:a 3} {:a 4 :b 5} {}])))))
 
 (deftest JoinQuery
   (testing "transform"

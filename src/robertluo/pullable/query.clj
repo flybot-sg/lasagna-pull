@@ -8,13 +8,21 @@
   (-transform [this target m]
     "run query on m, returns the transformed target"))
 
+(defprotocol Findable
+  (-select [target k not-found]
+    "returns value of target on k"))
+
+(defprotocol Target
+  (-append [target k v]
+    "append value to target"))
+
 (defrecord SimpleQuery [k]
   Query
   (-key [_] k)
   (-value-of [_ m]
-    (get m k ::none))
+    (-select m k ::none))
   (-transform [this target m]
-    (conj target [(-key this) (-value-of this m)])))
+    (-append target (-key this) (-value-of this m))))
 
 (defrecord JoinQuery [k-query v-query]
   Query
@@ -25,4 +33,34 @@
         ::none
         (-transform v-query {} v))))
   (-transform [this target m]
-    (conj target [(-key this) (-value-of this m)])))
+    (-append target (-key this) (-value-of this m))))
+
+(extend-protocol Findable
+  clojure.lang.ILookup
+  (-select [this k not-found]
+    (.valAt this k not-found))
+
+  clojure.lang.IPersistentVector
+  (-select [this k not-found]
+    (map #(-select % k not-found) this)))
+
+(defn pad
+  "returns a coll which has `n` length, with `coll` fill in first, then pad with
+  value"
+  [n coll value]
+  (take n (concat coll (repeat value))))
+
+(extend-protocol Target
+  nil
+  (-append [this k v]
+    (assoc this k v))
+
+  clojure.lang.IPersistentMap
+  (-append [this k v]
+    (.assoc this k v))
+
+  clojure.lang.IPersistentVector
+  (-append [this k v]
+    (mapv #(-append % k %2)
+          (pad (count v) this nil)
+          v)))
