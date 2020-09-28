@@ -31,7 +31,7 @@
     (let [v (-value-of k-query m)]
       (if (= v ::none)
         ::none
-        (-transform v-query {} v))))
+        (-transform v-query (empty v) v))))
   (-transform [this target m]
     (-append target (-key this) (-value-of this m))))
 
