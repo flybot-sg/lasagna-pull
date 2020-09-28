@@ -3,11 +3,16 @@
    [clojure.test :refer [deftest is testing]]
    [robertluo.pullable.query :as sut]))
 
-(deftest join-query
-  (testing "join on map structure"
-    (is (= {:a {:b 4}}
-           ((sut/join-query (sut/simple-query :a) (sut/simple-query :b))
-            {:a {:b 4 :c 5}})))
-    (is (= {:a {:b ::sut/none}}
-           ((sut/join-query (sut/simple-query :a) (sut/simple-query :b))
-            {:a {:c 5}})))))
+(deftest SimpleQuery
+  (testing "transform"
+    (is (= {:a 3}
+           (sut/-transform (sut/->SimpleQuery :a) {} {:a 3 :b 5})))))
+
+(deftest JoinQuery
+  (testing "transform"
+    (is (= {:a {:b 3}}
+           (sut/-transform (sut/->JoinQuery
+                            (sut/->SimpleQuery :a)
+                            (sut/->SimpleQuery :b))
+                           {}
+                           {:a {:b 3 :c 5}})))))
