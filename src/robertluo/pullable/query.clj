@@ -35,6 +35,25 @@
   (-transform [this target m]
     (-append target (-key this) (-value-of this m))))
 
+(defn pad
+  "returns a coll which has `n` length, with `coll` fill in first, then pad with
+  value"
+  [n coll value]
+  (take n (concat coll (repeat value))))
+
+(defrecord VectorQuery [queries]
+  Query
+  (-key [_] ::none)
+  (-value-of [_ m]
+    (map #(-value-of % m) queries))
+  (-transform [this target m]
+    (reduce (fn [t q] (-transform q t m))
+            target
+            queries)))
+
+;=======================================================
+; Implements Findable/Target on common data structures 
+
 (extend-protocol Findable
   clojure.lang.ILookup
   (-select [this k not-found]
@@ -43,12 +62,6 @@
   clojure.lang.IPersistentVector
   (-select [this k not-found]
     (map #(-select % k not-found) this)))
-
-(defn pad
-  "returns a coll which has `n` length, with `coll` fill in first, then pad with
-  value"
-  [n coll value]
-  (take n (concat coll (repeat value))))
 
 (extend-protocol Target
   nil

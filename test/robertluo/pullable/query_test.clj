@@ -22,3 +22,14 @@
     (testing "transform sequence"
       (is (= {:a [{:b 3}]}
              (sut/-transform q {} {:a [{:b 3}]}))))))
+
+(deftest VectorQuery
+  (let [q (sut/->VectorQuery
+           [(sut/->SimpleQuery :a)
+            (sut/->SimpleQuery :b)])]
+    (testing "transform simple"
+      (is (= {:a 3 :b 4}
+             (sut/-transform q {} {:a 3 :b 4 :c 5}))))
+    (testing "transform sequence"
+      (is (= [{:a 3 :b 4} {:a 3 :b ::sut/none}]
+             (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))
