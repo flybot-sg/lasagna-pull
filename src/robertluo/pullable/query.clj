@@ -1,4 +1,6 @@
-(ns robertluo.pullable.query)
+(ns robertluo.pullable.query
+  (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
+            ILookup]))
 
 (defprotocol Query
   (-key [query]
@@ -66,15 +68,55 @@
         (-append target (-key this) v)
         target))))
 
+(defn query
+  [query m]
+  (-transform query (empty m) m))
+
+(defprotocol QueryStatement
+  (-as-query [statement]
+    "create a query from statement"))
+
+(defmulti create-option
+  "Create query option"
+  :option/type)
+
+(defmethod create-option :as
+  [{:option/keys [arg query]}]
+  (->AsQuery query arg))
+
+(defmethod create-option :not-found
+  [{:keys [query arg]}]
+  (->NotFoundQuery query arg))
+
+(extend-protocol QueryStatement
+  Object
+  (-as-query [this]
+    (->SimpleQuery this))
+  IPersistentVector
+  (-as-query [this]
+    (->VectorQuery (map -as-query this)))
+  IPersistentMap
+  (-as-query [this]
+    (let [[k v] (first this)]
+      (->JoinQuery (-as-query k) (-as-query v))))
+  IPersistentList
+  (-as-query [this]
+    (let [[q & options] this
+          opt-pairs (partition 2 options)
+          query (-as-query q)]
+      (reduce (fn [q [ot ov]]
+                (create-option {:option/query q :option/type ot :option/arg ov}))
+              query opt-pairs))))
+
 ;=======================================================
 ; Implements Findable/Target on common data structures 
 
 (extend-protocol Findable
-  clojure.lang.ILookup
+  ILookup
   (-select [this k not-found]
     (.valAt this k not-found))
 
-  clojure.lang.IPersistentVector
+  IPersistentVector
   (-select [this k not-found]
     (map #(-select % k not-found) this)))
 
@@ -90,11 +132,11 @@
   (-append [this k v]
     (assoc this k v))
 
-  clojure.lang.IPersistentMap
+  IPersistentMap
   (-append [this k v]
     (.assoc this k v))
 
-  clojure.lang.IPersistentVector
+  IPersistentVector
   (-append [this k v]
     (mapv #(-append % k %2)
           (pad (count v) this nil)

@@ -48,3 +48,17 @@
   (testing "If specified 'ignore as not-found, it will not appear"
     (is (= {} (sut/-transform (sut/->NotFoundQuery
                                    (sut/->SimpleQuery :a) 'ignore) {} {})))))
+
+(deftest QueryStatement
+  (testing "SimpleQuery"
+    (is (= (sut/->SimpleQuery :a) (sut/-as-query :a))))
+  (testing "VectorQuery"
+    (is (= (sut/->VectorQuery [(sut/->SimpleQuery :a)])
+           (sut/-as-query [:a]))))
+  (testing "JoinQuery"
+    (is (= (sut/->JoinQuery (sut/->SimpleQuery :a)
+                            (sut/->SimpleQuery :b))
+           (sut/-as-query {:a :b}))))
+  (testing "query options"
+    (is (= (sut/->AsQuery (sut/->SimpleQuery :a) :b))
+        (sut/-as-query '(:a :as :b)))))
