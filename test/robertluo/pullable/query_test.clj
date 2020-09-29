@@ -39,4 +39,12 @@
            (sut/->SimpleQuery :a)
            :b)]
     (testing "AsQuery renames a key"
-      (is (= {:b 3} (sut/-transform  q {} {:a 3}))))))
+      (is (= {:b 3} (sut/-transform q {} {:a 3}))))))
+
+(deftest NotFoundQuery
+  (testing "If not found, replace with value supplied"
+    (is (= {:a 0} (sut/-transform (sut/->NotFoundQuery
+                                   (sut/->SimpleQuery :a) 0) {} {}))))
+  (testing "If specified 'ignore as not-found, it will not appear"
+    (is (= {} (sut/-transform (sut/->NotFoundQuery
+                                   (sut/->SimpleQuery :a) 'ignore) {} {})))))

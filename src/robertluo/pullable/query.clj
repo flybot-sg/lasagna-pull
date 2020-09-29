@@ -52,6 +52,20 @@
   (-transform [this target m]
     (-append target (-key this) (-value-of query m))))
 
+(defrecord NotFoundQuery [query not-found]
+  Query
+  (-key [_] (-key query))
+  (-value-of [_ m]
+    (let [v (-value-of query m)]
+      (if (= v ::none)
+        not-found
+        v)))
+  (-transform [this target m]
+    (let [v (-value-of this m)]
+      (if (not= v 'ignore)
+        (-append target (-key this) v)
+        target))))
+
 ;=======================================================
 ; Implements Findable/Target on common data structures 
 
