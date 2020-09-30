@@ -101,6 +101,11 @@
   [{:keys [query arg]}]
   (->NotFoundQuery query arg))
 
+(defmethod create-option :seq
+  [{:option/keys [query arg]}]
+  (let [[offset limit] arg]
+    (->SeqOption query offset limit)))
+
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
