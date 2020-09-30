@@ -81,6 +81,17 @@
   (-transform [this target m]
     (-append target (-key this) (-value-of this m))))
 
+(defrecord WithOption [query args]
+  Query
+  (-key [_] (-key query))
+  (-value-of [_ m]
+    (let [v (-value-of query m)]
+      (if (fn? v)
+        (apply v args)
+        (throw (ex-info "value is not a function" {:value v})))))
+  (-transform [this target m]
+    (-append target (-key this) (-value-of this m))))
+
 (defn query
   [query m]
   (-transform query (empty m) m))

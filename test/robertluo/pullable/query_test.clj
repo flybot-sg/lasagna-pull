@@ -75,3 +75,16 @@
                   (sut/->SeqOption (sut/->SimpleQuery :a) 1 3)
                   []
                   {:a 5})))))
+
+(deftest WithOption
+  (testing "with option invoke function of a value"
+    (is (= {:a 6}
+           (sut/-transform
+            (sut/->WithOption (sut/->SimpleQuery :a) [5])
+            {}
+            {:a inc})))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sut/-transform
+                  (sut/->WithOption (sut/->SimpleQuery :a) [5])
+                  []
+                  {:a 5})))))
