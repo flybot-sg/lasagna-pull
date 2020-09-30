@@ -68,6 +68,19 @@
         (-append target (-key this) v)
         target))))
 
+(defrecord SeqOption [query offset limit]
+  Query
+  (-key [_] (-key query))
+  (-value-of [_ m]
+    (let [v (-value-of query m)]
+      (if (seqable? v)
+        (cond->> v
+          offset (drop offset)
+          limit (take limit))
+        (throw (ex-info "value not seqable" {:value v})))))
+  (-transform [this target m]
+    (-append target (-key this) (-value-of this m))))
+
 (defn query
   [query m]
   (-transform query (empty m) m))
@@ -125,7 +138,6 @@
   value"
   [n coll value]
   (take n (concat coll (repeat value))))
-
 
 (extend-protocol Target
   nil

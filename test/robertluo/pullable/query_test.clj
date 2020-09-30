@@ -62,3 +62,16 @@
   (testing "query options"
     (is (= (sut/->AsQuery (sut/->SimpleQuery :a) :b))
         (sut/-as-query '(:a :as :b)))))
+
+(deftest SeqOption
+  (testing "seq option returns sequence with offset, limit"
+    (is (= [{:a 4} {:a 5} {:a 6}]
+           (sut/-transform
+            (sut/->SeqOption (sut/->SimpleQuery :a) 1 3)
+            []
+            [{:a 3} {:a 4} {:a 5} {:a 6} {:a 7}])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sut/-transform
+                  (sut/->SeqOption (sut/->SimpleQuery :a) 1 3)
+                  []
+                  {:a 5})))))
