@@ -52,7 +52,7 @@
   (-key [_] k)
   (-value-of [_ m] (-value-of query m))
   (-transform [this target m]
-    (-append target (-key this) (-value-of query m))))
+    (-append target (-key this) (-value-of this m))))
 
 (defrecord NotFoundOption [query not-found]
   Query
@@ -96,6 +96,9 @@
   [query m]
   (-transform query (empty m) m))
 
+(defn pattern-error [msg data]
+  (ex-info msg data))
+
 (defprotocol QueryStatement
   (-as-query [statement]
     "create a query from statement"))
@@ -116,6 +119,12 @@
   [{:option/keys [query arg]}]
   (let [[offset limit] arg]
     (->SeqOption query offset limit)))
+
+(defmethod create-option :with
+  [{:option/keys [query arg]}]
+  (when (not (vector? arg))
+    (throw (pattern-error "with args should be a vector" {:arg arg})))
+  (->WithOption query arg))
 
 (extend-protocol QueryStatement
   Object
