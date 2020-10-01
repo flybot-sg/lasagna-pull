@@ -1,7 +1,6 @@
 (ns robertluo.pullable
   (:require
-   [robertluo.pullable.core :as core]
-   [robertluo.pullable.pattern :as ptn]))
+   [robertluo.pullable.query :as query]))
 
 (defn pull
   "Returns pulling result from data using pattern ptn.
@@ -33,7 +32,5 @@
   ([data ptn]
    (pull data ptn nil))
   ([data ptn ex-handler]
-   (when-let [q (some-> (ptn/pattern->query ptn)
-                        (assoc :ex-handler ex-handler)
-                        core/query)]
+   (when-let [q (query/-as-query ptn)]
      (core/-select q data))))

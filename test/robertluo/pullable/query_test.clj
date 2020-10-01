@@ -60,8 +60,10 @@
                             (sut/->SimpleQuery :b))
            (sut/-as-query {:a :b}))))
   (testing "query options"
-    (is (= (sut/->AsQuery (sut/->SimpleQuery :a) :b))
-        (sut/-as-query '(:a :as :b)))))
+    (is (= (sut/->AsQuery (sut/->SimpleQuery :a) :b)
+           (sut/-as-query '(:a :as :b))))
+    (is (= (sut/->NotFoundOption (sut/->SimpleQuery :none) 0)
+           (sut/-as-query '(:none :not-found 0))))))
 
 (deftest SeqOption
   (testing "seq option returns sequence with offset, limit"

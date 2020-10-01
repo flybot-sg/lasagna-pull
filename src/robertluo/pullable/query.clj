@@ -54,7 +54,7 @@
   (-transform [this target m]
     (-append target (-key this) (-value-of query m))))
 
-(defrecord NotFoundQuery [query not-found]
+(defrecord NotFoundOption [query not-found]
   Query
   (-key [_] (-key query))
   (-value-of [_ m]
@@ -109,8 +109,8 @@
   (->AsQuery query arg))
 
 (defmethod create-option :not-found
-  [{:keys [query arg]}]
-  (->NotFoundQuery query arg))
+  [{:option/keys [query arg]}]
+  (->NotFoundOption query arg))
 
 (defmethod create-option :seq
   [{:option/keys [query arg]}]
