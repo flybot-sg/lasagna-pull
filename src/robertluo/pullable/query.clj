@@ -24,7 +24,7 @@
 
 (defrecord SimpleQuery [k]
   Query
-  (-key [_] k)
+  (-key [_] [k])
   (-value-of [_ m]
     (-select m k ::none))
   (-transform [this target m]
@@ -40,7 +40,7 @@
 
 (defrecord JoinQuery [k-query v-query]
   Query
-  (-key [_] (-key k-query))
+  (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
     (let [v (-value-of k-query m)]
       (if (= v ::none)
@@ -51,7 +51,7 @@
 
 (defrecord VectorQuery [queries]
   Query
-  (-key [_] ::none)
+  (-key [_] (mapcat -key queries))
   (-value-of [_ m]
     (map #(-value-of % m) queries))
   (-transform [this target m]
@@ -64,7 +64,7 @@
 
 (defrecord AsOption [query k]
   Query
-  (-key [_] k)
+  (-key [_] [k])
   (-value-of [_ m] (-value-of query m))
   (-transform [this target m]
     (default-transform this target m)))
@@ -137,12 +137,6 @@
     (throw (pattern-error "with args should be a vector" {:arg arg})))
   (->WithOption query arg))
 
-#_(defmethod create-option :batch
-  [{:option/keys [query arg]}]
-  (when (and (not (vector? arg)) (every? vector? arg))
-    (throw (pattern-error "batch requires a vector of vector arguments" {:arg arg})))
-  ())
-
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
@@ -164,7 +158,7 @@
               query opt-pairs))))
 
 ;=======================================================
-; Implements Findable/Target on common data structures 
+; Implements Findable/Target on common data structures
 
 (extend-protocol Findable
   ILookup
@@ -184,11 +178,11 @@
 (extend-protocol Target
   nil
   (-append [this k v]
-    (assoc this k v))
+    (assoc-in this k v))
 
   IPersistentMap
   (-append [this k v]
-    (.assoc this k v))
+    (assoc-in this k v))
 
   IPersistentVector
   (-append [this k v]

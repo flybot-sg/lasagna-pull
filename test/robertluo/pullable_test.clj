@@ -42,5 +42,7 @@
 (deftest query-as-key
   (testing "join-query can be a key, its key become the key of result"
     (let [data {:a {:b {:c 5}}}]
-      (is (= {:a {:c 5}}
+      (is (= {:a {:b {:c 5}}}
+             (sut/pull data '{:a {:b :c}})
+             (sut/pull data '{:a [{:b [:c]}]})
              (sut/pull data '{{:a :b} :c}))))))
