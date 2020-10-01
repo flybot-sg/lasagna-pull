@@ -126,6 +126,12 @@
     (throw (pattern-error "with args should be a vector" {:arg arg})))
   (->WithOption query arg))
 
+#_(defmethod create-option :batch
+  [{:option/keys [query arg]}]
+  (when (and (not (vector? arg)) (every? vector? arg))
+    (throw (pattern-error "batch requires a vector of vector arguments" {:arg arg})))
+  ())
+
 (extend-protocol QueryStatement
   Object
   (-as-query [this]

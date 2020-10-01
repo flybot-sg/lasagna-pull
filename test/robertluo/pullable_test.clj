@@ -42,9 +42,10 @@
     (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
              (sut/pull data '(:fn2 :with [7])))))
-    (testing ":batch option will batch :with calls"
-      (is (= {:fn2 [{:val 8} {:val 9}]}
-             (sut/pull data '(:fn2 :batch [[7] [8]])))))
-    (testing "global error handler option allow you to handle exceptions"
+    #_(testing ":batch option will batch :with calls"
+      (is (= {:fn2 [8 9]}
+             (sut/pull data '{ [(:fn2 :with [7])
+                                (:fn2 :with [8])] :val}))))
+    #_(testing "global error handler option allow you to handle exceptions"
       (is (= {:fn2 :fn2}
              (sut/pull data '(:fn2 :with ["ok"]) :error/key))))))
