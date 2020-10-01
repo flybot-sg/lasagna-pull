@@ -33,4 +33,4 @@
    (pull data ptn nil))
   ([data ptn ex-handler]
    (when-let [q (query/-as-query ptn)]
-     (core/-select q data))))
+     (query/-transform q (empty data) data))))
