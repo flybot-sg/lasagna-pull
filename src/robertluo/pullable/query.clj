@@ -47,7 +47,10 @@
             target
             queries)))
 
-(defrecord AsQuery [query k]
+;;====================================
+;; Options are wrapper of another query
+
+(defrecord AsOption [query k]
   Query
   (-key [_] k)
   (-value-of [_ m] (-value-of query m))
@@ -109,7 +112,7 @@
 
 (defmethod create-option :as
   [{:option/keys [arg query]}]
-  (->AsQuery query arg))
+  (->AsOption query arg))
 
 (defmethod create-option :not-found
   [{:option/keys [query arg]}]

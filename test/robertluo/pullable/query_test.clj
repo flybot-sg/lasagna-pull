@@ -35,7 +35,7 @@
              (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))
 
 (deftest AsQuery
-  (let [q (sut/->AsQuery
+  (let [q (sut/->AsOption
            (sut/->SimpleQuery :a)
            :b)]
     (testing "AsQuery renames a key"
@@ -43,10 +43,10 @@
 
 (deftest NotFoundQuery
   (testing "If not found, replace with value supplied"
-    (is (= {:a 0} (sut/-transform (sut/->NotFoundQuery
+    (is (= {:a 0} (sut/-transform (sut/->NotFoundOption
                                    (sut/->SimpleQuery :a) 0) {} {}))))
   (testing "If specified 'ignore as not-found, it will not appear"
-    (is (= {} (sut/-transform (sut/->NotFoundQuery
+    (is (= {} (sut/-transform (sut/->NotFoundOption
                                    (sut/->SimpleQuery :a) 'ignore) {} {})))))
 
 (deftest QueryStatement
@@ -60,7 +60,7 @@
                             (sut/->SimpleQuery :b))
            (sut/-as-query {:a :b}))))
   (testing "query options"
-    (is (= (sut/->AsQuery (sut/->SimpleQuery :a) :b)
+    (is (= (sut/->AsOption (sut/->SimpleQuery :a) :b)
            (sut/-as-query '(:a :as :b))))
     (is (= (sut/->NotFoundOption (sut/->SimpleQuery :none) 0)
            (sut/-as-query '(:none :not-found 0))))))
