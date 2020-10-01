@@ -18,13 +18,17 @@
   (-append [target k v]
     "append value to target"))
 
+(defn- default-transform
+  [query target m]
+  (-append target (-key query) (-value-of query m)))
+
 (defrecord SimpleQuery [k]
   Query
   (-key [_] k)
   (-value-of [_ m]
     (-select m k ::none))
   (-transform [this target m]
-    (-append target (-key this) (-value-of this m))))
+    (default-transform this target m)))
 
 (defrecord JoinQuery [k-query v-query]
   Query
@@ -35,7 +39,7 @@
         ::none
         (-transform v-query (empty v) v))))
   (-transform [this target m]
-    (-append target (-key this) (-value-of this m))))
+    (default-transform this target m)))
 
 (defrecord VectorQuery [queries]
   Query
@@ -55,7 +59,7 @@
   (-key [_] k)
   (-value-of [_ m] (-value-of query m))
   (-transform [this target m]
-    (-append target (-key this) (-value-of this m))))
+    (default-transform this target m)))
 
 (defrecord NotFoundOption [query not-found]
   Query
@@ -82,7 +86,7 @@
           limit (take limit))
         (throw (ex-info "value not seqable" {:value v})))))
   (-transform [this target m]
-    (-append target (-key this) (-value-of this m))))
+    (default-transform this target m)))
 
 (defrecord WithOption [query args]
   Query
@@ -93,11 +97,7 @@
         (apply v args)
         (throw (ex-info "value is not a function" {:value v})))))
   (-transform [this target m]
-    (-append target (-key this) (-value-of this m))))
-
-(defn query
-  [query m]
-  (-transform query (empty m) m))
+    (default-transform this target m)))
 
 (defn pattern-error [msg data]
   (ex-info msg data))

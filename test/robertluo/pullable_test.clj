@@ -35,3 +35,9 @@
     (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
              (sut/pull data '(:fn2 :with [7])))))))
+
+#_(deftest join-as-key
+  (testing "when join as key of a pattern"
+    (let [data {:a {:b {:c 5}}}]
+      (is (= {:a {:c 5}}
+             (sut/pull data '{{:a :b} :c}))))))
