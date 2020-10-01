@@ -26,13 +26,6 @@
     (testing ":limit and :offset will give a pagination"
       (is (= {:map {:vec [{:int 8}]}}
              (sut/pull data '{:map {:vec [(:int :seq [1 1])]}}))))
-    #_(testing "recursive pull"
-      (is (= {:map {:recur [{:int 10 :recur [{:int 100 :recur [{:int 1000}]}]}
-                            {:int 20 :recur [{:int 200 :recur [{:int 2000}]}]}]}}
-             (sut/pull data {:map {:recur :int :seq [] :depth 2}}))))
-    #_(testing "when pull data not as expected shape, it still can returns other part."
-      (let [exp (sut/pull data [:int {:map :int :seq []}])]
-        (is (= [8 :map] ((juxt :int #(get-in % [:map :error/key])) exp)))))
     (testing "can pull in a root sequence"
       (is (= [{:int 8} {:int 8}]
              (sut/pull [data data] [:int]))))
@@ -41,11 +34,4 @@
              (sut/pull data '(:fn :with ["hello" " " "world"])))))
     (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
-             (sut/pull data '(:fn2 :with [7])))))
-    #_(testing ":batch option will batch :with calls"
-      (is (= {:fn2 [8 9]}
-             (sut/pull data '{ [(:fn2 :with [7])
-                                (:fn2 :with [8])] :val}))))
-    #_(testing "global error handler option allow you to handle exceptions"
-      (is (= {:fn2 :fn2}
-             (sut/pull data '(:fn2 :with ["ok"]) :error/key))))))
+             (sut/pull data '(:fn2 :with [7])))))))
