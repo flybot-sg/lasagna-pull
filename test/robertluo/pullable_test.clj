@@ -18,6 +18,9 @@
     (testing "complex pattern"
       (is (= {:int 8 :map {:int 9 :kw :foo}}
              (sut/pull data [:int {:map [:int :kw]}]))))
+    (testing "nested join"
+      (is (= {:map {:vec [{:int 5} {:int 8}]}}
+             (sut/pull data '{:map {:vec :int}}))))
     (testing "list can provide options"
       (is (= {:none 0} (sut/pull data '(:none :not-found 0)))))
     (testing "join with :seq key is an explicit seq, will pull over its element"
@@ -36,8 +39,8 @@
       (is (= {:fn2 {:val 8}}
              (sut/pull data '(:fn2 :with [7])))))))
 
-#_(deftest join-as-key
-  (testing "when join as key of a pattern"
+(deftest query-as-key
+  (testing "join-query can be a key, its key become the key of result"
     (let [data {:a {:b {:c 5}}}]
       (is (= {:a {:c 5}}
              (sut/pull data '{{:a :b} :c}))))))

@@ -30,6 +30,14 @@
   (-transform [this target m]
     (default-transform this target m)))
 
+(defn- join-transform
+  [k-query v-query target m]
+  (let [v (-value-of k-query m)]
+    (-append target (-key k-query)
+             (if (= v ::none)
+               ::none
+               (-transform v-query (empty v) v)))))
+
 (defrecord JoinQuery [k-query v-query]
   Query
   (-key [_] (-key k-query))
@@ -37,9 +45,9 @@
     (let [v (-value-of k-query m)]
       (if (= v ::none)
         ::none
-        (-transform v-query (empty v) v))))
+        (-value-of v-query v))))
   (-transform [this target m]
-    (default-transform this target m)))
+    (join-transform k-query v-query target m)))
 
 (defrecord VectorQuery [queries]
   Query
