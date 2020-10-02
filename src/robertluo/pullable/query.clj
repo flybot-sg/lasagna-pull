@@ -1,6 +1,6 @@
 (ns robertluo.pullable.query
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
-            ILookup Sequential IPersistentSet]))
+            ILookup Sequential IPersistentSet ExceptionInfo]))
 
 (defprotocol Query
   "Can query on a data structure, return the value of its key, also able
@@ -81,9 +81,18 @@
         v)))
   (-transform [this target m]
     (let [v (-value-of this m)]
-      (if (not= v 'ignore)
-        (-append target (-key this) v)
-        target))))
+      (-append target (-key this) v))))
+
+(defrecord DataErrorOption [query ex-handler]
+  Query
+  (-key [_] (-key query))
+  (-value-of [_ m]
+    (try
+      (-value-of query m)
+      (catch ExceptionInfo ex
+        (ex-handler ex))))
+  (-transform [this target m]
+    (default-transform this target m)))
 
 (defn value-error [msg v]
   (ex-info msg (assoc {:error/kind :value} :value v)))
@@ -146,6 +155,12 @@
     (throw (pattern-error "with args should be a vector" arg)))
   (->WithOption query arg))
 
+(defmethod create-option :exception
+  [{:option/keys [query arg]}]
+  (when (not (fn? arg))
+    (throw (pattern-error "exception handler should be a function" arg)))
+  (->DataErrorOption query arg))
+
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
@@ -195,14 +210,21 @@
              (pad (count v) coll nil)
              v)))
 
+(def ^:const ignore ::ignore)
+
+(defn- append [x k v]
+  (if (not= v ignore)
+    (assoc-in x k v)
+    x))
+
 (extend-protocol Target
   nil
   (-append [this k v]
-    (assoc-in this k v))
+    (append this k v))
 
   IPersistentMap
   (-append [this k v]
-    (assoc-in this k v))
+    (append this k v))
 
   Sequential
   (-append [this k v]

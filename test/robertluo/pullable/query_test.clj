@@ -47,7 +47,7 @@
                                    (sut/->SimpleQuery :a) 0) {} {}))))
   (testing "If specified 'ignore as not-found, it will not appear"
     (is (= {} (sut/-transform (sut/->NotFoundOption
-                                   (sut/->SimpleQuery :a) 'ignore) {} {})))))
+                                   (sut/->SimpleQuery :a) sut/ignore) {} {})))))
 
 (deftest QueryStatement
   (testing "SimpleQuery"
@@ -90,3 +90,13 @@
                   (sut/->WithOption (sut/->SimpleQuery :a) [5])
                   []
                   {:a 5})))))
+
+(deftest DataErrorOption
+  (let [q (sut/->DataErrorOption
+           (sut/->WithOption (sut/->SimpleQuery :a) [4]) (constantly sut/ignore))]
+    (testing "if no data error, an option just inner result"
+      (is (= {:a 5}
+             (sut/-transform q {} {:a inc}))))
+    (testing "if data error, an option returns ex-handler result"
+      (is (= {}
+             (sut/-transform q {} {:a 5}))))))
