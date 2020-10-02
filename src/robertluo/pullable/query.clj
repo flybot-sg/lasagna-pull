@@ -1,6 +1,6 @@
 (ns robertluo.pullable.query
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
-            ILookup Sequential]))
+            ILookup Sequential IPersistentSet]))
 
 (defprotocol Query
   (-key [query]
@@ -167,6 +167,10 @@
 
   Sequential
   (-select [this k not-found]
+    (map #(-select % k not-found) this))
+
+  IPersistentSet
+  (-select [this k not-found]
     (map #(-select % k not-found) this)))
 
 (defn pad
@@ -174,6 +178,13 @@
   value"
   [n coll value]
   (take n (concat coll (repeat value))))
+
+(defn- seq-append
+  [coll k v]
+  (into (empty coll)
+        (map #(-append % k %2)
+             (pad (count v) coll nil)
+             v)))
 
 (extend-protocol Target
   nil
@@ -186,6 +197,8 @@
 
   Sequential
   (-append [this k v]
-    (mapv #(-append % k %2)
-          (pad (count v) this nil)
-          v)))
+    (seq-append this k v))
+
+  IPersistentSet
+  (-append [this k v]
+    (seq-append this k v)))

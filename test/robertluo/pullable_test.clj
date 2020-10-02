@@ -39,7 +39,7 @@
       (is (= {:fn2 {:val 8}}
              (sut/pull data '(:fn2 :with [7])))))))
 
-(deftest query-as-key
+(deftest complex-query-as-key
   (testing "join-query can be a key, its key become the key of result"
     (let [data {:a {:b {:c 5}}}]
       (is (= {:a {:b {:c 5}}}
@@ -48,5 +48,15 @@
              (sut/pull data '{{:a :b} :c})))))
   (testing "vector query as a join key make it union join"
     (let [data {:a {:c 5} :b {:c -5}}]
-      (is (= {[:a :b] [{:c 5} {:c -5}]}
-             (sut/pull data '{[:a :b] :c}))))))
+      (is (= {[:a :b] [{:c -5} {:c 5}]}
+             (sut/pull data '{[:a :b] :c})))))
+  (testing "with query as a key"
+    (let [data {:a (fn [i] {:key i :value (str i)})}]
+      (is (= {5 {:key 5 :value "5"}}
+             (sut/pull data '{(:a :with [5] :as 5) [:key :value]}))))))
+
+(deftest set-query
+  (testing "sets are also can be queried"
+    (let [data #{{:a 5} {:a 8}}]
+      (is (= #{{:a 8} {:a 5}}
+             (sut/pull data ':a))))))
