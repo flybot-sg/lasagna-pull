@@ -45,4 +45,8 @@
       (is (= {:a {:b {:c 5}}}
              (sut/pull data '{:a {:b :c}})
              (sut/pull data '{:a [{:b [:c]}]})
-             (sut/pull data '{{:a :b} :c}))))))
+             (sut/pull data '{{:a :b} :c})))))
+  (testing "vector query as a join key make it union join"
+    (let [data {:a {:c 5} :b {:c -5}}]
+      (is (= {[:a :b] [{:c 5} {:c -5}]}
+             (sut/pull data '{[:a :b] :c}))))))

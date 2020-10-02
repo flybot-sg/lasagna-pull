@@ -1,6 +1,6 @@
 (ns robertluo.pullable.query
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
-            ILookup]))
+            ILookup Sequential]))
 
 (defprotocol Query
   (-key [query]
@@ -51,7 +51,7 @@
 
 (defrecord VectorQuery [queries]
   Query
-  (-key [_] (mapcat -key queries))
+  (-key [_] [(mapcat -key queries)])
   (-value-of [_ m]
     (map #(-value-of % m) queries))
   (-transform [this target m]
@@ -165,7 +165,7 @@
   (-select [this k not-found]
     (.valAt this k not-found))
 
-  IPersistentVector
+  Sequential
   (-select [this k not-found]
     (map #(-select % k not-found) this)))
 
@@ -184,7 +184,7 @@
   (-append [this k v]
     (assoc-in this k v))
 
-  IPersistentVector
+  Sequential
   (-append [this k v]
     (mapv #(-append % k %2)
           (pad (count v) this nil)
