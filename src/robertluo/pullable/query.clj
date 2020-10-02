@@ -3,8 +3,10 @@
             ILookup Sequential IPersistentSet]))
 
 (defprotocol Query
+  "Can query on a data structure, return the value of its key, also able
+   to transform another data structure"
   (-key [query]
-    "returns the key of the query")
+    "returns the key of the query, should be a vector")
   (-value-of [query m]
     "run query on m, return the value")
   (-transform [this target m]
@@ -83,6 +85,9 @@
         (-append target (-key this) v)
         target))))
 
+(defn value-error [msg v]
+  (ex-info msg (assoc {:error/kind :value} :value v)))
+
 (defrecord SeqOption [query offset limit]
   Query
   (-key [_] (-key query))
@@ -92,7 +97,7 @@
         (cond->> v
           offset (drop offset)
           limit (take limit))
-        (throw (ex-info "value not seqable" {:value v})))))
+        (throw (value-error "value not seqable" v)))))
   (-transform [this target m]
     (default-transform this target m)))
 
@@ -103,12 +108,12 @@
     (let [v (-value-of query m)]
       (if (fn? v)
         (apply v args)
-        (throw (ex-info "value is not a function" {:value v})))))
+        (throw (value-error "value is not a function" v)))))
   (-transform [this target m]
     (default-transform this target m)))
 
-(defn pattern-error [msg data]
-  (ex-info msg data))
+(defn pattern-error [msg arg]
+  (ex-info msg (assoc {:error/kind :pattern} :arg arg)))
 
 (defprotocol QueryStatement
   (-as-query [statement]
@@ -129,12 +134,16 @@
 (defmethod create-option :seq
   [{:option/keys [query arg]}]
   (let [[offset limit] arg]
+    (when (and offset (not (number? offset)))
+      (throw (pattern-error "offset should be a number or nil" offset)))
+    (when (and offset (not (number? limit)))
+      (throw (pattern-error "limit should be a number or nil" limit)))
     (->SeqOption query offset limit)))
 
 (defmethod create-option :with
   [{:option/keys [query arg]}]
   (when (not (vector? arg))
-    (throw (pattern-error "with args should be a vector" {:arg arg})))
+    (throw (pattern-error "with args should be a vector" arg)))
   (->WithOption query arg))
 
 (extend-protocol QueryStatement
