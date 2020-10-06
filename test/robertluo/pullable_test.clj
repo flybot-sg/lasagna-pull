@@ -39,6 +39,10 @@
       (is (= {:fn2 {:val 8}}
              (sut/pull data '(:fn2 :with [7])))))))
 
+(deftest simple
+  (is (= [{:a 3} {:a 5}]
+         (sut/pull [{:a 3 :b 4} {:a 5 :b 3}] :a))))
+
 (deftest complex-query-as-key
   (testing "join-query can be a key, its key become the key of result"
     (let [data {:a {:b {:c 5}}}]

@@ -10,7 +10,41 @@ Clojure has built-in function like `select-keys` can return same shape data from
 
 Inspired by [Datomic Pull API](https://docs.datomic.com/on-prem/pull.html) and [EQL](https://edn-query-language.org/eql/1.0.0/what-is-eql.html), this simple library provide you a simple and precise pattern allow you to pull data out in one call.
 
+## Usage
+
+One single function `pull` let you describe a data pattern, specific how you want to pull from a source data structure.
+
+```clojure
+(require '[robertluo.pullable :refer [pull]])
+(pull {:a 3 :b 4} :a)
+```
+
 ## Pattern
+
+A pattern is a data structure specific your desired data:
+
+### Simple Pattern
+
+Any value, just like clojure's `get` function, but returns the same data shape:
+
+```clojure
+(pull {:a 3 :b 4} :a) ;=> {:a 3}
+```
+
+When pulling on a sequence of data, it will apply to every element:
+
+```clojure
+(pull [{:a 5 :b 3} {:a 3 :b 2}] :a) ;=> [{:a 5} {:a 3}]
+
+;same structure means if you are pulling from a set, it will also return a set
+(pull #{{:a 5 :b 3} {:a 3 :b 2}} :a) ;=> #{{:a 5} {:a 2}}
+
+;it will 
+```
+
+### Vector pattern
+
+By grouping pattern together, a vector pattern let you 
 
 Pattern specification:
   - key is just a normal value, ofter is a keyword.
