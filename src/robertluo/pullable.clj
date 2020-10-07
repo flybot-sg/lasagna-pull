@@ -1,4 +1,5 @@
 (ns robertluo.pullable
+  "Pull from data structure by using pattern."
   (:require
    [robertluo.pullable.query :as query]))
 
