@@ -1,6 +1,12 @@
 (ns robertluo.pullable.query
+  (:require [clojure.walk :as walk])
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
             ILookup Sequential IPersistentSet ExceptionInfo]))
+
+;; Pullable implemented by interaction between
+;; Query and Findable (data source) and Target (data sink)
+;; By define them as protocols, user can extend them to support
+;; customized behavior on their own data structures.
 
 (defprotocol Query
   "Can query on a data structure, return the value of its key, also able
@@ -13,10 +19,12 @@
     "run query on m, returns the transformed target"))
 
 (defprotocol Findable
+  "Source of data"
   (-select [target k not-found]
     "returns value of target on k"))
 
 (defprotocol Target
+  "Sink of data"
   (-append [target k v]
     "append value to target"))
 
@@ -161,6 +169,12 @@
     (throw (pattern-error "exception handler should be a function" arg)))
   (->DataErrorOption query arg))
 
+(defn- make-options
+  [query opt-pairs]
+  (reduce (fn [q [ot ov]]
+            (create-option {:option/query q :option/type ot :option/arg ov}))
+          query opt-pairs))
+
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
@@ -177,9 +191,18 @@
     (let [[q & options] this
           opt-pairs (partition 2 options)
           query (-as-query q)]
-      (reduce (fn [q [ot ov]]
-                (create-option {:option/query q :option/type ot :option/arg ov}))
-              query opt-pairs))))
+      (make-options query opt-pairs))))
+
+(defn rewrite-pattern
+  [pattern options]
+  (letfn [(mk-list [x m]
+            (reduce concat x m))]
+    (walk/postwalk
+     (fn [x]
+       (if (list? x)
+         x
+         (mk-list (list x) options)))
+     pattern)))
 
 ;=======================================================
 ; Implements Findable/Target on common data structures
