@@ -175,6 +175,10 @@
             (create-option {:option/query q :option/type ot :option/arg ov}))
           query opt-pairs))
 
+(defn- option-map [x]
+  (let [[q & options] x]
+    [q (->> options (partition 2) (mapv vec) (into {}))]))
+
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
@@ -188,21 +192,9 @@
       (->JoinQuery (-as-query k) (-as-query v))))
   IPersistentList
   (-as-query [this]
-    (let [[q & options] this
-          opt-pairs (partition 2 options)
-          query (-as-query q)]
+    (let [[q opt-pairs] (option-map this)
+          query         (-as-query q)]
       (make-options query opt-pairs))))
-
-(defn rewrite-pattern
-  [pattern options]
-  (letfn [(mk-list [x m]
-            (reduce concat x m))]
-    (walk/postwalk
-     (fn [x]
-       (if (list? x)
-         x
-         (mk-list (list x) options)))
-     pattern)))
 
 ;=======================================================
 ; Implements Findable/Target on common data structures

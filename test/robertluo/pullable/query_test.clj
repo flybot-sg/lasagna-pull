@@ -100,9 +100,3 @@
     (testing "if data error, an option returns ex-handler result"
       (is (= {}
              (sut/-transform q {} {:a 5}))))))
-
-(deftest rewrite-pattern
-  (is (= '(:a :with [3])
-         (sut/rewrite-pattern :a {:with [3]})))
-  (is (= '([(:a :opt 3) (:b :opt 3)] :opt 3)
-         (sut/rewrite-pattern [:a :b] {:opt 3}))))

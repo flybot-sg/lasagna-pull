@@ -15,14 +15,9 @@
    - Vector pattern, returns the combination of its elements.
    - Join pattern, aka map, its keys are patterns, and will be ran first, then the values (also are patterns) will be run in the context of the key result data structure.
    - List pattern, first element is a pattern, the rest are options, must be in pairs.
-
-  ### Global options
-
-  A nullable map, will be applied to every sub-pattern in the pattern as if they have all list pattern.
-  "
-  [pattern global-options]
-  (cond->> pattern
-    (seq global-options) (query/rewrite-pattern global-options)
+ "
+  [pattern]
+  (cond-> pattern
     true                 (query/-as-query)))
 
 (defn run
@@ -33,6 +28,4 @@
 (defn pull
   "Combined `query` and `run` in one step."
   ([data ptn]
-   (pull data ptn nil))
-  ([data ptn global-options]
-   (run data (query ptn global-options))))
+   (run data (query ptn))))
