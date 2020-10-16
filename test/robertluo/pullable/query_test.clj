@@ -69,12 +69,12 @@
   (testing "seq option returns sequence with offset, limit"
     (is (= [{:a 4} {:a 5} {:a 6}]
            (sut/-transform
-            (sut/->SeqOption (sut/->SimpleQuery :a) 1 3)
+            (sut/->SeqOption (sut/->SimpleQuery :a) [1 3])
             []
             [{:a 3} {:a 4} {:a 5} {:a 6} {:a 7}])))
     (is (thrown? clojure.lang.ExceptionInfo
                  (sut/-transform
-                  (sut/->SeqOption (sut/->SimpleQuery :a) 1 3)
+                  (sut/->SeqOption (sut/->SimpleQuery :a) [1 3])
                   []
                   {:a 5})))))
 
@@ -92,7 +92,7 @@
                   {:a 5})))))
 
 (deftest DataErrorOption
-  (let [q (sut/->DataErrorOption
+  (let [q (sut/->ExceptionOption
            (sut/->WithOption (sut/->SimpleQuery :a) [4]) (constantly sut/ignore))]
     (testing "if no data error, an option just inner result"
       (is (= {:a 5}

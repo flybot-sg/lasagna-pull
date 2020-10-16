@@ -1,5 +1,5 @@
 (ns robertluo.pullable.query
-  (:require [clojure.walk :as walk])
+  (:require [clojure.string :as str])
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
             ILookup Sequential IPersistentSet ExceptionInfo]))
 
@@ -69,105 +69,87 @@
             target
             queries)))
 
-;;====================================
-;; Options are wrapper of another query
-
-(defrecord AsOption [query k]
-  Query
-  (-key [_] [k])
-  (-value-of [_ m] (-value-of query m))
-  (-transform [this target m]
-    (default-transform this target m)))
-
-(defrecord NotFoundOption [query not-found]
-  Query
-  (-key [_] (-key query))
-  (-value-of [_ m]
-    (let [v (-value-of query m)]
-      (if (= v ::none)
-        not-found
-        v)))
-  (-transform [this target m]
-    (let [v (-value-of this m)]
-      (-append target (-key this) v))))
-
-(defrecord DataErrorOption [query ex-handler]
-  Query
-  (-key [_] (-key query))
-  (-value-of [_ m]
-    (try
-      (-value-of query m)
-      (catch ExceptionInfo ex
-        (ex-handler ex))))
-  (-transform [this target m]
-    (default-transform this target m)))
-
-(defn value-error [msg v]
-  (ex-info msg (assoc {:error/kind :value} :value v)))
-
-(defrecord SeqOption [query offset limit]
-  Query
-  (-key [_] (-key query))
-  (-value-of [_ m]
-    (let [v (-value-of query m)]
-      (if (seqable? v)
-        (cond->> v
-          offset (drop offset)
-          limit (take limit))
-        (throw (value-error "value not seqable" v)))))
-  (-transform [this target m]
-    (default-transform this target m)))
-
-(defrecord WithOption [query args]
-  Query
-  (-key [_] (-key query))
-  (-value-of [_ m]
-    (let [v (-value-of query m)]
-      (if (fn? v)
-        (apply v args)
-        (throw (value-error "value is not a function" v)))))
-  (-transform [this target m]
-    (default-transform this target m)))
-
-(defn pattern-error [msg arg]
-  (ex-info msg (assoc {:error/kind :pattern} :arg arg)))
-
-(defprotocol QueryStatement
-  (-as-query [statement]
-    "create a query from statement"))
-
 (defmulti create-option
   "Create query option"
   :option/type)
 
-(defmethod create-option :as
-  [{:option/keys [arg query]}]
-  (->AsOption query arg))
+;;====================================
+;; Options are wrapper of another query
 
-(defmethod create-option :not-found
-  [{:option/keys [query arg]}]
-  (->NotFoundOption query arg))
+(defn camel-case [^String s]
+  (->> (.split s "-") (map str/capitalize) (apply str)))
 
-(defmethod create-option :seq
-  [{:option/keys [query arg]}]
-  (let [[offset limit] arg]
-    (when (and offset (not (number? offset)))
-      (throw (pattern-error "offset should be a number or nil" offset)))
-    (when (and offset (not (number? limit)))
-      (throw (pattern-error "limit should be a number or nil" limit)))
-    (->SeqOption query offset limit)))
+(defn pattern-error [msg arg]
+  (ex-info msg (assoc {:error/kind :pattern} :arg arg)))
 
-(defmethod create-option :with
-  [{:option/keys [query arg]}]
-  (when (not (vector? arg))
-    (throw (pattern-error "with args should be a vector" arg)))
-  (->WithOption query arg))
+(defmacro def-query-option
+  [option-name arg & {:keys [key value-of transform assert-arg]}]
+  (let [type-name (-> option-name (name) (camel-case) (str "Option") (symbol))]
+    `(do
+       (defrecord ~type-name [~'query ~arg]
+         Query
+         (-key [~'this]
+           ~(or `~key `(-key ~'query)))
+         (-value-of [~'this ~'m]
+           ~(or `~value-of `(-value-of ~'query ~'m)))
+         (-transform [~'this ~'target ~'m]
+           ~(or `~transform  `(default-transform ~'this ~'target ~'m))))
 
-(defmethod create-option :exception
-  [{:option/keys [query arg]}]
-  (when (not (fn? arg))
-    (throw (pattern-error "exception handler should be a function" arg)))
-  (->DataErrorOption query arg))
+       (defmethod create-option ~option-name
+         [{:option/keys [~'arg ~'query]}]
+         ~@(when assert-arg
+            `(when-not (~assert-arg ~'arg)
+               (throw (pattern-error "Option error" ~'arg))))
+         (new ~type-name ~'query ~'arg)))))
+
+(comment
+  (macroexpand-1 '(def-query-option :as k
+                    :key [k]))
+  )
+
+(def-query-option :as k
+  :key [k])
+
+(def-query-option :not-found not-found 
+  :value-of
+  (let [v (-value-of query m)]
+    (if (= v ::none)
+      not-found
+      v))
+  :transform
+  (let [v (-value-of this m)]
+    (-append target (-key this) v)))
+
+(def-query-option :exception ex-handler
+  :value-of
+  (try
+    (-value-of query m)
+    (catch ExceptionInfo ex
+      (ex-handler ex))))
+
+(defn value-error [msg v]
+  (ex-info msg (assoc {:error/kind :value} :value v)))
+
+(def-query-option :seq off-limit
+  :value-of
+  (let [v (-value-of query m)
+        [offset limit] off-limit]
+    (if (seqable? v)
+      (cond->> v
+        offset (drop offset)
+        limit (take limit))
+      (throw (value-error "value not seqable" v)))))
+
+(def-query-option :with args
+  :value-of
+  (let [v (-value-of query m)]
+    (if (fn? v)
+      (apply v args)
+      (throw (value-error "value is not a function" v)))))
+
+(defprotocol QueryStatement
+  (-as-query [statement]
+    "create a query from statement"))
 
 (defn- make-options
   [query opt-pairs]
