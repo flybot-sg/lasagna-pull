@@ -34,21 +34,6 @@
       (is (= [{:a 3 :b 4} {:a 3 :b ::sut/none}]
              (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))
 
-(deftest AsQuery
-  (let [q (sut/->AsOption
-           (sut/->SimpleQuery :a)
-           :b)]
-    (testing "AsQuery renames a key"
-      (is (= {:b 3} (sut/-transform q {} {:a 3}))))))
-
-(deftest NotFoundQuery
-  (testing "If not found, replace with value supplied"
-    (is (= {:a 0} (sut/-transform (sut/->NotFoundOption
-                                   (sut/->SimpleQuery :a) 0) {} {}))))
-  (testing "If specified 'ignore as not-found, it will not appear"
-    (is (= {} (sut/-transform (sut/->NotFoundOption
-                                   (sut/->SimpleQuery :a) sut/ignore) {} {})))))
-
 (deftest QueryStatement
   (testing "SimpleQuery"
     (is (= (sut/->SimpleQuery :a) (sut/-as-query :a))))
@@ -58,45 +43,5 @@
   (testing "JoinQuery"
     (is (= (sut/->JoinQuery (sut/->SimpleQuery :a)
                             (sut/->SimpleQuery :b))
-           (sut/-as-query {:a :b}))))
-  (testing "query options"
-    (is (= (sut/->AsOption (sut/->SimpleQuery :a) :b)
-           (sut/-as-query '(:a :as :b))))
-    (is (= (sut/->NotFoundOption (sut/->SimpleQuery :none) 0)
-           (sut/-as-query '(:none :not-found 0))))))
+           (sut/-as-query {:a :b})))))
 
-(deftest SeqOption
-  (testing "seq option returns sequence with offset, limit"
-    (is (= [{:a 4} {:a 5} {:a 6}]
-           (sut/-transform
-            (sut/->SeqOption (sut/->SimpleQuery :a) [1 3])
-            []
-            [{:a 3} {:a 4} {:a 5} {:a 6} {:a 7}])))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (sut/-transform
-                  (sut/->SeqOption (sut/->SimpleQuery :a) [1 3])
-                  []
-                  {:a 5})))))
-
-(deftest WithOption
-  (testing "with option invoke function of a value"
-    (is (= {:a 6}
-           (sut/-transform
-            (sut/->WithOption (sut/->SimpleQuery :a) [5])
-            {}
-            {:a inc})))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (sut/-transform
-                  (sut/->WithOption (sut/->SimpleQuery :a) [5])
-                  []
-                  {:a 5})))))
-
-(deftest DataErrorOption
-  (let [q (sut/->ExceptionOption
-           (sut/->WithOption (sut/->SimpleQuery :a) [4]) (constantly sut/ignore))]
-    (testing "if no data error, an option just inner result"
-      (is (= {:a 5}
-             (sut/-transform q {} {:a inc}))))
-    (testing "if data error, an option returns ex-handler result"
-      (is (= {}
-             (sut/-transform q {} {:a 5}))))))

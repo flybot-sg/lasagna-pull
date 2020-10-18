@@ -1,7 +1,6 @@
 (ns robertluo.pullable.query
-  (:require [clojure.string :as str])
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
-            ILookup Sequential IPersistentSet ExceptionInfo]))
+            ILookup Sequential IPersistentSet]))
 
 ;; Pullable implemented by interaction between
 ;; Query and Findable (data source) and Target (data sink)
@@ -28,7 +27,7 @@
   (-append [target k v]
     "append value to target"))
 
-(defn- default-transform
+(defn default-transform
   [query target m]
   (-append target (-key query) (-value-of query m)))
 
@@ -72,80 +71,6 @@
 (defmulti create-option
   "Create query option"
   :option/type)
-
-;;====================================
-;; Options are wrapper of another query
-
-(defn camel-case [^String s]
-  (->> (.split s "-") (map str/capitalize) (apply str)))
-
-(defn pattern-error [msg arg]
-  (ex-info msg (assoc {:error/kind :pattern} :arg arg)))
-
-(defmacro def-query-option
-  [option-name arg & {:keys [key value-of transform assert-arg]}]
-  (let [type-name (-> option-name (name) (camel-case) (str "Option") (symbol))]
-    `(do
-       (defrecord ~type-name [~'query ~arg]
-         Query
-         (-key [~'this]
-           ~(or `~key `(-key ~'query)))
-         (-value-of [~'this ~'m]
-           ~(or `~value-of `(-value-of ~'query ~'m)))
-         (-transform [~'this ~'target ~'m]
-           ~(or `~transform  `(default-transform ~'this ~'target ~'m))))
-
-       (defmethod create-option ~option-name
-         [{:option/keys [~'arg ~'query]}]
-         ~@(when assert-arg
-            `(when-not (~assert-arg ~'arg)
-               (throw (pattern-error "Option error" ~'arg))))
-         (new ~type-name ~'query ~'arg)))))
-
-(comment
-  (macroexpand-1 '(def-query-option :as k
-                    :key [k]))
-  )
-
-(def-query-option :as k
-  :key [k])
-
-(def-query-option :not-found not-found 
-  :value-of
-  (let [v (-value-of query m)]
-    (if (= v ::none)
-      not-found
-      v))
-  :transform
-  (let [v (-value-of this m)]
-    (-append target (-key this) v)))
-
-(def-query-option :exception ex-handler
-  :value-of
-  (try
-    (-value-of query m)
-    (catch ExceptionInfo ex
-      (ex-handler ex))))
-
-(defn value-error [msg v]
-  (ex-info msg (assoc {:error/kind :value} :value v)))
-
-(def-query-option :seq off-limit
-  :value-of
-  (let [v (-value-of query m)
-        [offset limit] off-limit]
-    (if (seqable? v)
-      (cond->> v
-        offset (drop offset)
-        limit (take limit))
-      (throw (value-error "value not seqable" v)))))
-
-(def-query-option :with args
-  :value-of
-  (let [v (-value-of query m)]
-    (if (fn? v)
-      (apply v args)
-      (throw (value-error "value is not a function" v)))))
 
 (defprotocol QueryStatement
   (-as-query [statement]
