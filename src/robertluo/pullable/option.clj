@@ -59,7 +59,7 @@
   value-of
   (try
     (core/-value-of query m)
-    (catch ExceptionInfo ex
+    (catch Exception ex
       (ex-handler ex)))
   assert-arg fn?)
 
@@ -74,11 +74,14 @@
       (cond->> v
         offset (drop offset)
         limit (take limit))
-      (throw (value-error "value not seqable" v)))))
+      (throw (value-error "value not seqable" v))))
+  assert-arg
+  #(and (vector? %) (every? number? %)))
 
 (def-query-option :with args
   value-of
   (let [v (core/-value-of query m)]
     (if (fn? v)
       (apply v args)
-      (throw (value-error "value is not a function" v)))))
+      (throw (value-error "value is not a function" v))))
+  assert-arg vector?)
