@@ -1,8 +1,10 @@
 (ns robertluo.pullable
   "Pull from data structure by using pattern."
   (:require
-   [robertluo.pullable.query :as query]
-   [robertluo.pullable.option]))
+   [robertluo.pullable
+    [query :as query]
+    [pattern :as ptn]
+    option]))
 
 (defn query
   "Returns a query from `pattern` and `global-options` map. A query can be used to
@@ -18,8 +20,7 @@
    - List pattern, first element is a pattern, the rest are options, must be in pairs.
  "
   [pattern]
-  (cond-> pattern
-    true                 (query/-as-query)))
+  (ptn/-as-query pattern))
 
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."

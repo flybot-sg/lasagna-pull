@@ -1,5 +1,5 @@
 (ns robertluo.pullable.query
-  (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
+  (:import [clojure.lang IPersistentMap
             ILookup Sequential IPersistentSet APersistentVector]))
 
 ;; Pullable implemented by interaction between
@@ -71,37 +71,6 @@
 (defmulti create-option
   "Create query option"
   :option/type)
-
-(defprotocol QueryStatement
-  (-as-query [statement]
-    "create a query from statement"))
-
-(defn- make-options
-  [query opt-pairs]
-  (reduce (fn [q [ot ov]]
-            (create-option {:option/query q :option/type ot :option/arg ov}))
-          query opt-pairs))
-
-(defn- option-map [x]
-  (let [[q & options] x]
-    [q (->> options (partition 2) (mapv vec) (into {}))]))
-
-(extend-protocol QueryStatement
-  Object
-  (-as-query [this]
-    (->SimpleQuery this))
-  IPersistentVector
-  (-as-query [this]
-    (->VectorQuery (map -as-query this)))
-  IPersistentMap
-  (-as-query [this]
-    (let [[k v] (first this)]
-      (->JoinQuery (-as-query k) (-as-query v))))
-  IPersistentList
-  (-as-query [this]
-    (let [[q opt-pairs] (option-map this)
-          query         (-as-query q)]
-      (make-options query opt-pairs))))
 
 ;=======================================================
 ; Implements Findable/Target on common data structures

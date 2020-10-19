@@ -1,9 +1,8 @@
 (ns robertluo.pullable.option
+  "Options are query wrappers, they are also queries"
   (:require
    [clojure.string :as str]
-   [robertluo.pullable.query :as core])
-  (:import
-   [clojure.lang ExceptionInfo]))
+   [robertluo.pullable.query :as core]))
 
 ;;====================================
 ;; Options are wrapper of another query

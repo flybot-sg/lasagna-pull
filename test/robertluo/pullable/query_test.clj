@@ -33,15 +33,3 @@
     (testing "transform sequence"
       (is (= [{:a 3 :b 4} {:a 3 :b ::sut/none}]
              (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))
-
-(deftest QueryStatement
-  (testing "SimpleQuery"
-    (is (= (sut/->SimpleQuery :a) (sut/-as-query :a))))
-  (testing "VectorQuery"
-    (is (= (sut/->VectorQuery [(sut/->SimpleQuery :a)])
-           (sut/-as-query [:a]))))
-  (testing "JoinQuery"
-    (is (= (sut/->JoinQuery (sut/->SimpleQuery :a)
-                            (sut/->SimpleQuery :b))
-           (sut/-as-query {:a :b})))))
-
