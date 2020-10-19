@@ -20,6 +20,7 @@
 
 (defprotocol Findable
   "Source of data"
+  :extend-via-metadata true
   (-select [target k not-found]
     "returns value of target on k"))
 
