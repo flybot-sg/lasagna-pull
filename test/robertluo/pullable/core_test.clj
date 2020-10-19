@@ -1,7 +1,7 @@
-(ns robertluo.pullable.query-test
+(ns robertluo.pullable.core-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [robertluo.pullable.query :as sut]))
+   [robertluo.pullable.core :as sut]))
 
 (deftest SimpleQuery
   (let [q (sut/->SimpleQuery :a)]

@@ -2,7 +2,7 @@
   "Pull from data structure by using pattern."
   (:require
    [robertluo.pullable
-    [query :as query]
+    [core :as core]
     [pattern :as ptn]
     option]))
 
@@ -25,7 +25,7 @@
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."
   [data q]
-  (query/-transform q (empty data) data))
+  (core/-transform q (empty data) data))
 
 (defn pull
   "Combined `query` and `run` in one step."

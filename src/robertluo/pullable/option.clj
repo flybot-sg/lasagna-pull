@@ -2,7 +2,7 @@
   "Options are query wrappers, they are also queries"
   (:require
    [clojure.string :as str]
-   [robertluo.pullable.query :as core]))
+   [robertluo.pullable.core :as core]))
 
 ;;====================================
 ;; Options are wrapper of another query

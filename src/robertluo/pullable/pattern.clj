@@ -1,6 +1,6 @@
 (ns robertluo.pullable.pattern
   (:require
-   [robertluo.pullable.query :as core])
+   [robertluo.pullable.core :as core])
   (:import
    [clojure.lang IPersistentVector IPersistentMap IPersistentList]))
 

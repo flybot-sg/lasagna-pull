@@ -2,7 +2,7 @@
   (:require
    [clojure.test :refer [deftest is]]
    [robertluo.pullable.option]
-   [robertluo.pullable.query :as core])
+   [robertluo.pullable.core :as core])
   (:import
    [clojure.lang ExceptionInfo]))
 
