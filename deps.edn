@@ -4,6 +4,7 @@
  {:dev
   {:extra-paths ["test"]}
   :test
-  {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.0-612"}
-                lambdaisland/kaocha-cloverage {:mvn/version "1.0-45"}}
+  {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.0.700"}
+                lambdaisland/kaocha-cloverage {:mvn/version "1.0.63"}
+                org.clojure/test.check        {:mvn/version "1.1.0"}}
    :main-opts  ["-m" "kaocha.runner"]}}}

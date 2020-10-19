@@ -1,6 +1,6 @@
 (ns robertluo.pullable.query
   (:import [clojure.lang IPersistentVector IPersistentMap IPersistentList
-            ILookup Sequential IPersistentSet]))
+            ILookup Sequential IPersistentSet APersistentVector]))
 
 ;; Pullable implemented by interaction between
 ;; Query and Findable (data source) and Target (data sink)
@@ -111,7 +111,14 @@
   (-select [this k not-found]
     (.valAt this k not-found))
 
+  ;;FIXME clojure's sequence has many different interfaces
   Sequential
+  (-select [this k not-found]
+    (map #(-select % k not-found) this))
+
+  ;;FIXME a vector is also ILookup enabled, choose this sacrificed select
+  ;;element based on index
+  APersistentVector
   (-select [this k not-found]
     (map #(-select % k not-found) this))
 
@@ -127,6 +134,8 @@
 
 (defn- seq-append
   [coll k v]
+  (when-not (coll? v)
+    (throw (ex-info "impossible v" {:v v})))
   (into (empty coll)
         (map #(-append % k %2)
              (pad (count v) coll nil)
