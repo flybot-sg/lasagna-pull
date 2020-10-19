@@ -1,7 +1,8 @@
 (ns robertluo.pullable.core
   "Core namespace. consists of protocols, multimethods"
-  (:import [clojure.lang IPersistentMap
-            ILookup Sequential IPersistentSet APersistentVector]))
+  (:import
+   [clojure.lang IPersistentMap ILookup Sequential IPersistentSet
+    APersistentVector]))
 
 ;; Pullable implemented by interaction between
 ;; Query and Findable (data source) and Target (data sink)

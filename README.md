@@ -43,7 +43,7 @@ Putting patterns inside a vector makes vector pattern, it results doing those qu
 
 ### Join pattern
 
-A join pattern is map which keys are patterns, and the values also are patterns. It results a map with the keys are the keys of key patterns, and values are value patterns.
+A join pattern is map contains one key query to one value query. It results a map with the keys are the keys of key patterns, and values are value patterns.
 
 ```clojure
 (pull {:a {:b 4 :c 5}} {:a :b}) ;=> {:a {:b 4}}
