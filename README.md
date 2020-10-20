@@ -79,6 +79,16 @@ If a value is a function, you can pass `:with` arguments, it will apply these ar
 (pull {:a inc} '(:a :with [2])) ;=> {:a 3}
 ```
 
+#### `:batch` option
+
+If a value is a function, you can pass `:batch` arguments, it will call it multiple times by apply arguments to it.
+
+```clojure
+(pull {:a inc} '(:a :batch [[1] [2]])) ;=> {:a '(2 3)}
+```
+
+
+
 ## License
 Copyright © 2020 Robertluo
 

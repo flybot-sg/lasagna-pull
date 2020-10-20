@@ -38,3 +38,8 @@
   (is (thrown? ExceptionInfo (option-for :seq 1 {})))
   (is (thrown? ExceptionInfo (option-for :seq [:a] {})))
   (is (thrown? ExceptionInfo (option-for :seq [1 2] {:a 3}))))
+
+(deftest batch-option
+  (is (= {:a [2 3]}
+         (option-for :batch [[1] [2]] {:a inc})))
+  (is (thrown? ExceptionInfo (option-for :batch 1 {}))))
