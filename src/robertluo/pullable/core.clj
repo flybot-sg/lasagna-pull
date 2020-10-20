@@ -113,7 +113,7 @@
              (pad (count v) coll nil)
              v)))
 
-(def ^:const ignore ::ignore)
+(def ^:const ignore :robertluo.pullable/ignore)
 
 (defn- append [x k v]
   (if (not= v ignore)

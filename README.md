@@ -67,8 +67,10 @@ If a value is a collection of maps need to pull, you can specify by add
 
 If a value is not present in data, its value pulled will be `:robertluo.pullable.core/not-found` by default. However, you can replace it by using `:not-found 0` option.
 
+When pass `:robertluo.pullable/ignore` as the value, if not found, it not going to appear in the result. 
 ```clojure
 (pull {} '(:a :not-found 0)) ;=> [{:a 0}]
+(pull {} '(:a ::pull/ignore)) ;=> {}
 ```
 
 #### `:with` option
