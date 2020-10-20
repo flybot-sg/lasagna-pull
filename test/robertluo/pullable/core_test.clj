@@ -1,13 +1,35 @@
-(ns ^:unit robertluo.pullable.core-test
+(ns robertluo.pullable.core-test
   (:require
-   [robertluo.pullable.core :as sut]
-   [clojure.test :refer [deftest testing is]]))
+   [clojure.test :refer [deftest is testing]]
+   [robertluo.pullable.core :as sut]))
 
-(deftest CoreQuery
-  (testing "simple query just return a map"
-    (is (= {:a 3}
-           (sut/-select (sut/map->CoreQuery {:key :a}) {:a 3}))))
-  (testing "when there is an exception, it still return with ex-handler called"
-    (is (= {:a :a}
-           (sut/-select (sut/map->CoreQuery {:key :a :processors ["ok"]
-                                             :ex-handler :error/key}) {})))))
+(deftest SimpleQuery
+  (let [q (sut/->SimpleQuery :a)]
+    (testing "transform"
+      (is (= {:a 3}
+             (sut/-transform q {} {:a 3 :b 5}))))
+    (testing "Sequence transform"
+      (is (= [{:a 3} {:a 4} {:a ::sut/none}]
+             (sut/-transform q [] [{:a 3} {:a 4 :b 5} {}]))))))
+
+(deftest JoinQuery
+  (let [q (sut/->JoinQuery
+           (sut/->SimpleQuery :a)
+           (sut/->SimpleQuery :b))]
+    (testing "transform simple"
+      (is (= {:a {:b 3}}
+             (sut/-transform q {} {:a {:b 3 :c 5}}))))
+    (testing "transform sequence"
+      (is (= {:a [{:b 3}]}
+             (sut/-transform q {} {:a [{:b 3}]}))))))
+
+(deftest VectorQuery
+  (let [q (sut/->VectorQuery
+           [(sut/->SimpleQuery :a)
+            (sut/->SimpleQuery :b)])]
+    (testing "transform simple"
+      (is (= {:a 3 :b 4}
+             (sut/-transform q {} {:a 3 :b 4 :c 5}))))
+    (testing "transform sequence"
+      (is (= [{:a 3 :b 4} {:a 3 :b ::sut/none}]
+             (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))

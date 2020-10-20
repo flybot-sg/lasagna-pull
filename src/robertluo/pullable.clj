@@ -1,39 +1,33 @@
 (ns robertluo.pullable
+  "Pull from data structure by using pattern."
   (:require
-   [robertluo.pullable.core :as core]
-   [robertluo.pullable.pattern :as ptn]))
+   [robertluo.pullable
+    [core :as core]
+    [pattern :as ptn]
+    option]))
+
+(defn query
+  "Returns a query from `pattern` and `global-options` map. A query can be used to
+   pull from data structure later.
+
+  ### Pattern
+
+  A pattern is recursive data structure, consists of:
+
+   - Simple value pattern, just be used as a key of a lookup data structure, such as map keys, vector index, etc.
+   - Vector pattern, returns the combination of its elements.
+   - Join pattern, aka map, its keys are patterns, and will be ran first, then the values (also are patterns) will be run in the context of the key result data structure.
+   - List pattern, first element is a pattern, the rest are options, must be in pairs.
+ "
+  [pattern]
+  (ptn/-as-query pattern))
+
+(defn run
+  "Given `data`, run a query returned by `query` and returns the pull result."
+  [data q]
+  (core/-transform q (empty data) data))
 
 (defn pull
-  "Returns pulling result from data using pattern ptn.
-   Like `clojure.core/select-keys`, but more powerful.
-   Result data has the same structure of data.
-   Data can be a map, or collection of maps, potentially very big.
-   Inspired by [Datomic Pull](https://docs.datomic.com/on-prem/pull.html).
-   
-   Pattern specification:
-    - key is just a normal value, ofter is a keyword.
-    - vector of keys.
-    - map is a join, means go one layer deeper into data.
-    - list can apply options to a pulling.
-   
-   For example:
-     pattern `[:a :b]` means pull `:a`, `:b` from data, same result as `select-keys`.
-     where `[:a {:b [:c]}]` means get `:a` and `(get-in [:b :c])`.
-   
-   If a value is a collection of maps need to pull, you can specify by add
-   :seq option to a pattern.
-  
-   For example:
-     `[:a {:b [:c] :seq []}]` or `(:a :seq [])`
-   
-   Notice that you must explicit specific it, this is different from Datomic Pull.
-   `:seq` option also can specific offset and limit. e.g. `:seq [10 20]` means pulling
-   from the collection starting from index 10 (0 based), and take 20.
-   "
+  "Combined `query` and `run` in one step."
   ([data ptn]
-   (pull data ptn nil))
-  ([data ptn ex-handler]
-   (when-let [q (some-> (ptn/pattern->query ptn)
-                        (assoc :ex-handler ex-handler)
-                        core/query)]
-     (core/-select q data))))
+   (run data (query ptn))))

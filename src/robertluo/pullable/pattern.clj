@@ -1,61 +1,37 @@
 (ns robertluo.pullable.pattern
-  "defines a pattern expression language to write query easily")
+  (:require
+   [robertluo.pullable.core :as core])
+  (:import
+   [clojure.lang IPersistentVector IPersistentMap IPersistentList]))
 
-;;====================
-;; Pattern
+(defprotocol QueryStatement
+  (-as-query [statement]
+    "create a query from statement"))
 
-(defprotocol Queryable
-  (-to-query
-   [queryable]
-   "returns a Query of itself"))
+(defn- make-options
+  [query opt-pairs]
+  (reduce (fn [q [ot ov]]
+            (core/create-option {:option/query q :option/type ot :option/arg ov}))
+          query opt-pairs))
 
-(defn normalize [v]
-  (if (vector? v) v [v]))
+(defn- option-map [x]
+  (let [[q & options] x]
+    [q (->> options (partition 2) (mapv vec) (into {}))]))
 
-(defn expand-depth
-  [depth m]
-  (assert (pos? depth) "Depth must be a positive number")
-  (let [[k v] (first m)
-        d     (let [v (dec depth)] (when (pos? v) v))
-        v     (conj (normalize v) (cond-> (assoc m :not-found ::ignore)
-                                    d (assoc :depth d)))]
-    (assoc m k v)))
-
-(extend-protocol Queryable
-  nil
-  (-to-query
-    [_]
-    {})
-
+(extend-protocol QueryStatement
   Object
-  (-to-query
-    [this]
-    {:key this})
+  (-as-query [this]
+    (core/->SimpleQuery this))
+  IPersistentVector
+  (-as-query [this]
+    (core/->VectorQuery (map -as-query this)))
+  IPersistentMap
+  (-as-query [this]
+    (let [[k v] (first this)]
+      (core/->JoinQuery (-as-query k) (-as-query v))))
+  IPersistentList
+  (-as-query [this]
+    (let [[q opt-pairs] (option-map this)
+          query         (-as-query q)]
+      (make-options query opt-pairs))))
 
-  ;;vector defines an empty query contains children
-  clojure.lang.PersistentVector
-  (-to-query
-   [this]
-    {:children (map -to-query (.seq this))})
-
-  ;;Clojure list? definition is IPersistentList, but Transit library use Java list, what a mess!
-  java.util.List
-  (-to-query
-    [[v & options]]
-    (assoc (-to-query v) :options (partition 2 options)))
-
-  ;;Map to specific key, children and options at same time
-  clojure.lang.IPersistentMap
-  (-to-query
-   [this]
-   (if-let [depth (:depth this)]
-     ;;:depth is a special option, using rewrite to implement it
-     (-to-query (expand-depth depth (dissoc this :depth)))
-     (if-let [[k v] (first this)]
-       (let [options (dissoc this k)]
-         (assoc (-to-query (normalize v)) :key k :options options))
-       (-to-query nil)))))
-
-(defn pattern->query
-  [ptn]
-  (-to-query ptn))

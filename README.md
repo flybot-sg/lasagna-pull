@@ -12,50 +12,83 @@ Inspired by [Datomic Pull API](https://docs.datomic.com/on-prem/pull.html) and [
 
 ## Pattern
 
-Pattern specification:
-  - key is just a normal value, ofter is a keyword.
-  - vector of keys.
-  - map is a join, means go one layer deeper into data.
-  - list can apply options to a pulling.
- 
-For example:
-  pattern `[:a :b]` means pull `:a`, `:b` from data, same result as `select-keys`.
-  where `[:a {:b [:c]}]` means get `:a` and `(get-in [:b :c])`.
+A pattern is a recursive data structure specific your desired data:
 
-### `:depth` option
+### Simple Pattern
 
-If data is recursive, like `{:child {:age 15 :child {:age 20 :child {:age 3}}}}`, you do not need to write it all by hand, specific `{:child [:age] :depth 1}` will expand to `{:child [:age {:child [:age]}]}` automatically. 
+Any value, just like clojure's `get` function, but returns the same data shape:
 
-### `:seq` option
+```clojure
+(pull {:a 3 :b 4} :a) ;=> {:a 3}
+```
+
+When pulling on a sequence of data, it will apply to every element:
+
+```clojure
+(pull [{:a 5 :b 3} {:a 3 :b 2}] :a) ;=> [{:a 5} {:a 3}]
+
+;same structure means if you are pulling from a set, it will also return a set
+(pull #{{:a 5 :b 3} {:a 3 :b 2}} :a) ;=> #{{:a 5} {:a 2}}
+
+```
+
+### Vector pattern
+
+Putting patterns inside a vector makes vector pattern, it results doing those queries one by one, and returns same structure.
+
+```clojure
+(pull {:a 3 :b 4 :c 5} [:a :b]) ;=> like select-keys, returns {:a 3 :b 4} 
+(pull [{:a 3 :b 4 :c 5} {:a 5}] ;=> [{:a 3 :b 4} {:a 5 :b :robertluo.pull.core/::noe}]
+```
+
+### Join pattern
+
+A join pattern is map contains one key query to one value query. It results a map with the keys are the keys of key patterns, and values are value patterns.
+
+```clojure
+(pull {:a {:b 4 :c 5}} {:a :b}) ;=> {:a {:b 4}}
+(pull {:a {:b 4 :c 5 :d 6}} {:a [:b :d]} ;=> {:a {:b 4 :d 6}}
+```
+
+### Pattern options
+
+You can pass options to any pattern by using a list, with the first element is the pattern itself, and options are pairs of a keyword (option name) and its argument.
+
+#### `:seq` option
 
 If a value is a collection of maps need to pull, you can specify by add
-`:seq` option to a pattern.
-For example:
-  `[:a {:b [:c] :seq []}]` or `(:a :seq [])`
+`:seq` option to a pattern (pagination).
 
-Notice that you must explicit specific it, this is different from Datomic Pull.
-`:seq` option also can specific offset and limit. e.g. `:seq [10 20]` means pulling
-from the collection starting from index 10 (0 based), and take 20.
+```clojure
+(pull [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4}] '(:a :seq [1 2])) ;=> [{:a 1} {:a 2}] 
+```
 
-### `:not-found` option
+#### `:not-found` option
 
-If a value is not present in data, its value pulled will be `:robertluo.pullable.core/not-found` by default. However, you can specific it by using `:not-found 0` to change it.
+If a value is not present in data, its value pulled will be `:robertluo.pullable.core/not-found` by default. However, you can replace it by using `:not-found 0` option.
 
-### `:with` option
+When pass `:robertluo.pullable/ignore` as the value, if not found, it not going to appear in the result. 
+```clojure
+(pull {} '(:a :not-found 0)) ;=> [{:a 0}]
+(pull {} '(:a ::pull/ignore)) ;=> {}
+```
+
+#### `:with` option
 
 If a value is a function, you can pass `:with` arguments, it will apply these arguments to the function and return it.
 
-### `:batch` option
+```clojure
+(pull {:a inc} '(:a :with [2])) ;=> {:a 3}
+```
 
-If you want to call `:with` multiple times, `:batch` option will return a sequence of calling returning value also in a sequence.
+#### `:batch` option
 
-## Error Handling
+If a value is a function, you can pass `:batch` arguments, it will call it multiple times by apply arguments to it.
 
-When an exception raised when pulling a key, the corresponding value will be an error map like:
+```clojure
+(pull {:a inc} '(:a :batch [[1] [2]])) ;=> {:a '(2 3)}
+```
 
-`{:error/key :key-of-error, :error/message "the exception message", :error/data {...}}`
-
-You can provide an global exception handler function which will receive this error map as the argument, and the return value will be the value instead. A common practice might be logging.
 
 
 ## License
