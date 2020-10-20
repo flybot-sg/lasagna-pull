@@ -37,7 +37,11 @@
              (sut/pull data '(:fn :with ["hello" " " "world"])))))
     (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
-             (sut/pull data '(:fn2 :with [7])))))))
+             (sut/pull data '(:fn2 :with [7])))))
+    (testing "#pull/depth tag will recur pattern"
+      (is (= {:map {:recur [{:int 10 :recur {:int [200]}}
+                            {:int 20 :recur {:int [100]}}]}}
+             (sut/pull data {:map #pull/depth [{:recur :int} 1]}))))))
 
 (deftest simple
   (is (= [{:a 3} {:a 5}]
