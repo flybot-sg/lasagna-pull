@@ -10,10 +10,10 @@
     {k (conj (normalize v) c)}))
 
 (defn expand-depth
+  "Rewrite pattern by depth"
   [[m depth]]
   (assert (pos? depth) "Depth must be a positive number")
-  (loop [m m
-         d depth]
+  (loop [m m d depth]
     (if (zero? d)
       m
       (recur (add-element m m) (dec d)))))
@@ -28,5 +28,3 @@
 
 (comment
   (add-option {:a 3} [:as :b]))
-
-
