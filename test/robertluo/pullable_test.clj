@@ -68,3 +68,9 @@
     (let [data #{{:a 5} {:a 8}}]
       (is (= #{{:a 8} {:a 5}}
              (sut/pull data ':a))))))
+
+(deftest union-query
+  (testing "union query"
+    (let [data {:a {:foo 3} :b {:foo 4}}]
+      (is (= {:ok [{:foo 4} {:foo 3}]}
+             (sut/pull data '{([:a :b] :as :ok) :foo}))))))

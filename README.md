@@ -89,8 +89,6 @@ If a value is a function, you can pass `:batch` arguments, it will call it multi
 (pull {:a inc} '(:a :batch [[1] [2]])) ;=> {:a '(2 3)}
 ```
 
-
-
 ## License
 Copyright © 2020 Robertluo
 
