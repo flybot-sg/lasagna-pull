@@ -46,3 +46,7 @@
 
 (deftest when-option
   (is (= {:a [0 2 4 6 8]} (option-for :when even? {:a (range 10)}))))
+
+(deftest group-by-option
+  (is (= {:a {true [0 2 4 6 8] false [1 3 5 7 9]}}
+         (option-for :group-by even? {:a (range 10)}))))

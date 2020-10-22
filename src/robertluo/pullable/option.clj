@@ -97,3 +97,11 @@
       (filter pred v)
       (throw (value-error "value not seqable" v))))
   assert-arg fn?)
+
+(def-query-option :group-by f
+  value-of
+  (let [v (core/-value-of query m)]
+    (if-let [v (seq v)]
+      (group-by f v)
+      (throw (value-error "value not seqable" v))))
+  assert-arg fn?)
