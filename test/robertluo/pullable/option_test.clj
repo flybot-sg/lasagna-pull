@@ -43,3 +43,6 @@
   (is (= {:a [2 3]}
          (option-for :batch [[1] [2]] {:a inc})))
   (is (thrown? ExceptionInfo (option-for :batch 1 {}))))
+
+(deftest when-option
+  (is (= {:a [0 2 4 6 8]} (option-for :when even? {:a (range 10)}))))
