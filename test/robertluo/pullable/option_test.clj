@@ -50,3 +50,10 @@
 (deftest group-by-option
   (is (= {:a {true [0 2 4 6 8] false [1 3 5 7 9]}}
          (option-for :group-by even? {:a (range 10)}))))
+
+(deftest order-by-option
+  (is (= [{:a 3 :b 2} {:a 4 :b 2} {:a 5 :b 2}]
+         (option-for (core/->VectorQuery
+                      [(core/->SimpleQuery :a)
+                       (core/->SimpleQuery :b)])
+                     :order-by :a [{:a 4 :b 2} {:a 3 :b 2} {:a 5 :b 2}]))))

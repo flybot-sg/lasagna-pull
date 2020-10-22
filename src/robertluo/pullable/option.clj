@@ -65,18 +65,6 @@
 (defn value-error [msg v]
   (ex-info msg (assoc {:error/kind :value} :value v)))
 
-(def-query-option :seq off-limit
-  value-of
-  (let [v (core/-value-of query m)
-        [offset limit] off-limit]
-    (if (seqable? v)
-      (cond->> v
-        offset (drop offset)
-        limit (take limit))
-      (throw (value-error "value not seqable" v))))
-  assert-arg
-  #(and (vector? %) (every? number? %)))
-
 (def-query-option :with args
   value-of
   (let [v (core/-value-of query m)]
@@ -105,3 +93,24 @@
       (group-by f v)
       (throw (value-error "value not seqable" v))))
   assert-arg fn?)
+
+(def-query-option :seq off-limit
+  value-of
+  (let [v (core/-value-of query m)
+        [offset limit] off-limit]
+    (if (seqable? v)
+      (cond->> v
+        offset (drop offset)
+        limit (take limit))
+      (throw (value-error "value not seqable" v))))
+  assert-arg
+  #(and (vector? %) (every? number? %)))
+
+(def-query-option :order-by keyfn
+  transform
+  (let [v (core/-transform query target m)]
+    (if (seqable? v)
+      (sort-by keyfn v)
+      (throw (value-error "value not seqable" v))))
+  assert-arg #(or (fn? %) (keyword? %)))
+
