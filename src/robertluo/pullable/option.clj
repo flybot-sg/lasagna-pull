@@ -38,7 +38,7 @@
          ~@(when assert-arg
              `(do
                (when-not (~assert-arg ~'arg)
-                 (throw (pattern-error "Option error" ~'arg)))))
+                 (throw (pattern-error "Option argument error" ~'arg)))))
          (new ~type-name ~'query ~'arg)))))
 
 ;;========================

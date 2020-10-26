@@ -89,6 +89,18 @@ If a value is a function, you can pass `:batch` arguments, it will call it multi
 (pull {:a inc} '(:a :batch [[1] [2]])) ;=> {:a '(2 3)}
 ```
 
+#### `:when` option
+
+Filter the result if it is a sequence.
+
+#### `:order-by` option
+
+Order the result if it is a sequence.
+
+#### `:group-by` option
+
+Group the result if it is a sequence.
+
 ## License
 Copyright © 2020 Robertluo
 
