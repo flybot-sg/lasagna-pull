@@ -90,6 +90,7 @@ If a value is a function, you can pass `:batch` arguments, it will call it multi
 ```
 
 
+Group the result if it is a sequence.
 
 ## License
 Copyright © 2020 Robertluo
