@@ -85,11 +85,7 @@
       (throw (value-error "value is not a function" v))))
   assert-arg vector?)
 
-;;FIXME boilerplate code
 (def-query-option :batch seq-args
   value-of
-  (let [v (core/-value-of query m)]
-    (if (fn? v)
-      (map #(apply v %) seq-args)
-      (throw (value-error "value is not a function" v))))
+  (map #(core/-value-of (WithOption. query %) m) seq-args)
   assert-arg #(and (vector? %) (every? vector? %)))
