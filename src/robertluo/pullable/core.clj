@@ -22,11 +22,12 @@
 (defprotocol Findable
   "Source of data"
   :extend-via-metadata true
-  (-select [target k not-found]
+  (-select [target k]
     "returns value of target on k"))
 
 (defprotocol Target
   "Sink of data"
+  :extend-via-metadata true
   (-append [target k v]
     "append value to target"))
 
@@ -38,7 +39,7 @@
   Query
   (-key [_] [k])
   (-value-of [_ m]
-    (-select m k ::none))
+    (-select m k))
   (-transform [this target m]
     (default-transform this target m)))
 
@@ -80,23 +81,23 @@
 
 (extend-protocol Findable
   ILookup
-  (-select [this k not-found]
-    (.valAt this k not-found))
+  (-select [this k]
+    (.valAt this k ::none))
 
   ;;FIXME clojure's sequence has many different interfaces
   Sequential
-  (-select [this k not-found]
-    (map #(-select % k not-found) this))
+  (-select [this k]
+    (map #(-select % k) this))
 
   ;;FIXME a vector is also ILookup enabled, choose this sacrificed select
   ;;element based on index
   APersistentVector
-  (-select [this k not-found]
-    (map #(-select % k not-found) this))
+  (-select [this k]
+    (map #(-select % k) this))
 
   IPersistentSet
-  (-select [this k not-found]
-    (map #(-select % k not-found) this)))
+  (-select [this k]
+    (map #(-select % k) this)))
 
 (defn pad
   "returns a coll which has `n` length, with `coll` fill in first, then pad with

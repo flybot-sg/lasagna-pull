@@ -31,3 +31,4 @@
   "Combined `query` and `run` in one step."
   ([data ptn]
    (run data (query ptn))))
+
