@@ -22,7 +22,7 @@
 (defprotocol Findable
   "Source of data"
   :extend-via-metadata true
-  (-select [target k]
+  (-select [target k context]
     "returns value of target on k"))
 
 (defprotocol Target
@@ -31,26 +31,18 @@
   (-append [target k v]
     "append value to target"))
 
-(defn default-transform
-  [query target m]
-  (-append target (-key query) (-value-of query m)))
-
 ;;=======================
 ;; Query implementation
 
-(defn request-join?
-  [context m]
-  (and
-   (= :join (::type context))
-   (some-> m meta :pull/request-join?)))
+(defn default-transform
+  [query target m]
+  (-append target (-key query) (-value-of query m)))
 
 (defrecord SimpleQuery [context k]
   Query
   (-key [_] [k])
   (-value-of [_ m]
-    (if (request-join? context m)
-      ::request-join
-      (-select m k)))
+    (-select m k context))
   (-transform [this target m]
     (default-transform this target m)))
 
@@ -113,23 +105,23 @@
 
 (extend-protocol Findable
   ILookup
-  (-select [this k]
+  (-select [this k _]
     (.valAt this k ::none))
 
   ;;FIXME clojure's sequence has many different interfaces
   Sequential
-  (-select [this k]
-    (map #(-select % k) this))
+  (-select [this k context]
+    (map #(-select % k context) this))
 
   ;;FIXME a vector is also ILookup enabled, choose this sacrificed select
   ;;element based on index
   APersistentVector
-  (-select [this k]
-    (map #(-select % k) this))
+  (-select [this k context]
+    (map #(-select % k context) this))
 
   IPersistentSet
-  (-select [this k]
-    (map #(-select % k) this)))
+  (-select [this k context]
+    (map #(-select % k context) this)))
 
 (defn pad
   "returns a coll which has `n` length, with `coll` fill in first, then pad with
