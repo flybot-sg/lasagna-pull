@@ -24,7 +24,7 @@
              (sut/-transform q {} {:a [{:b 3}]}))))))
 
 (deftest VectorQuery
-  (let [q (sut/->VectorQuery
+  (let [q (sut/vector-query
            [(sut/simple-query :a)
             (sut/simple-query :b)])]
     (testing "transform simple"

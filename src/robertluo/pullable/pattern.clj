@@ -24,7 +24,7 @@
     (core/simple-query this))
   IPersistentVector
   (-as-query [this]
-    (core/->VectorQuery (map -as-query this)))
+    (core/vector-query (map -as-query this)))
   IPersistentMap
   (-as-query [this]
     (let [[k v] (first this)]

@@ -87,7 +87,7 @@
   ([context k-q v-q]
    (JoinQuery. context k-q v-q)))
 
-(defrecord VectorQuery [queries]
+(defrecord VectorQuery [context queries]
   Query
   (-key [_] [(mapcat -key queries)])
   (-value-of [_ m]
@@ -96,6 +96,13 @@
     (reduce (fn [t q] (-transform q t m))
             target
             queries)))
+
+(defn vector-query
+  "constructor of a vector query"
+  ([queries]
+   (vector-query nil queries))
+  ([context queries]
+   (VectorQuery. context queries)))
 
 (defmulti create-option
   "Create query option"

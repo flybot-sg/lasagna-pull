@@ -8,7 +8,7 @@
   (testing "SimpleQuery"
     (is (= (core/simple-query :a) (sut/-as-query :a))))
   (testing "VectorQuery"
-    (is (= (core/->VectorQuery [(core/simple-query :a)])
+    (is (= (core/vector-query [(core/simple-query :a)])
            (sut/-as-query [:a]))))
   (testing "JoinQuery"
     (is (= (core/join-query (core/simple-query :a)
