@@ -35,13 +35,30 @@
   [query target m]
   (-append target (-key query) (-value-of query m)))
 
-(defrecord SimpleQuery [k]
+;;=======================
+;; Query implementation
+
+(defn request-join?
+  [context m]
+  (and
+   (= :join (::type context))
+   (some-> m meta :pull/request-join?)))
+
+(defrecord SimpleQuery [context k]
   Query
   (-key [_] [k])
   (-value-of [_ m]
-    (-select m k))
+    (if (request-join? context m)
+      ::request-join
+      (-select m k)))
   (-transform [this target m]
     (default-transform this target m)))
+
+(defn simple-query
+  ([k]
+   (simple-query nil k))
+  ([context k]
+   (SimpleQuery. context k)))
 
 (defn- join-transform
   [k-query v-query target m]

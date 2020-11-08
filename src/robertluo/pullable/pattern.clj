@@ -21,7 +21,7 @@
 (extend-protocol QueryStatement
   Object
   (-as-query [this]
-    (core/->SimpleQuery this))
+    (core/simple-query this))
   IPersistentVector
   (-as-query [this]
     (core/->VectorQuery (map -as-query this)))

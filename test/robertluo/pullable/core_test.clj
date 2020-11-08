@@ -4,7 +4,7 @@
    [robertluo.pullable.core :as sut]))
 
 (deftest SimpleQuery
-  (let [q (sut/->SimpleQuery :a)]
+  (let [q (sut/simple-query :a)]
     (testing "transform"
       (is (= {:a 3}
              (sut/-transform q {} {:a 3 :b 5}))))
@@ -14,8 +14,8 @@
 
 (deftest JoinQuery
   (let [q (sut/->JoinQuery
-           (sut/->SimpleQuery :a)
-           (sut/->SimpleQuery :b))]
+           (sut/simple-query :a)
+           (sut/simple-query :b))]
     (testing "transform simple"
       (is (= {:a {:b 3}}
              (sut/-transform q {} {:a {:b 3 :c 5}}))))
@@ -25,8 +25,8 @@
 
 (deftest VectorQuery
   (let [q (sut/->VectorQuery
-           [(sut/->SimpleQuery :a)
-            (sut/->SimpleQuery :b)])]
+           [(sut/simple-query :a)
+            (sut/simple-query :b)])]
     (testing "transform simple"
       (is (= {:a 3 :b 4}
              (sut/-transform q {} {:a 3 :b 4 :c 5}))))

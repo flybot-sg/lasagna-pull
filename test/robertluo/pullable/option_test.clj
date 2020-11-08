@@ -8,7 +8,7 @@
 
 (defn option-for
   ([opt-key opt-arg data]
-   (option-for (core/->SimpleQuery :a) opt-key opt-arg data))
+   (option-for (core/simple-query :a) opt-key opt-arg data))
   ([q opt-key opt-arg data]
    (-> (core/create-option #:option{:query q :type opt-key :arg opt-arg})
        (core/-transform (empty data) data))))
