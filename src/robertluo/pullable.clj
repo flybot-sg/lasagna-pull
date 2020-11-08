@@ -20,7 +20,7 @@
    - List pattern, first element is a pattern, the rest are options, must be in pairs.
  "
   [pattern]
-  (ptn/-as-query pattern))
+  (ptn/as-query pattern))
 
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."

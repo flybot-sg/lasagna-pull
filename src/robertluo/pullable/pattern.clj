@@ -5,7 +5,7 @@
    [clojure.lang IPersistentVector IPersistentMap IPersistentList]))
 
 (defprotocol QueryStatement
-  (-as-query [statement]
+  (-as-query [statement context]
     "create a query from statement"))
 
 (defn- make-options
@@ -20,18 +20,27 @@
 
 (extend-protocol QueryStatement
   Object
-  (-as-query [this]
-    (core/simple-query this))
+  (-as-query [this context]
+    (core/simple-query context this))
   IPersistentVector
-  (-as-query [this]
-    (core/vector-query (map -as-query this)))
+  (-as-query [this context]
+    (let [child-context (assoc context ::core/type :vector)]
+      (core/vector-query context (map #(-as-query % child-context) this))))
   IPersistentMap
-  (-as-query [this]
-    (let [[k v] (first this)]
-      (core/join-query (-as-query k) (-as-query v))))
+  (-as-query [this context]
+    (let [[k v] (first this)
+          child-context (assoc context ::core/type :join)]
+      (core/join-query context (-as-query k child-context) (-as-query v child-context))))
   IPersistentList
-  (-as-query [this]
+  (-as-query [this context]
     (let [[q opt-pairs] (option-map this)
-          query         (-as-query q)]
+          query         (-as-query q context)]
       (make-options query opt-pairs))))
+
+(defn as-query
+  "returns a query"
+  ([pattern]
+   (as-query pattern nil))
+  ([pattern context]
+   (-as-query pattern context)))
 

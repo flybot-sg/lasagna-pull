@@ -6,12 +6,12 @@
 
 (deftest QueryStatement
   (testing "SimpleQuery"
-    (is (= (core/simple-query :a) (sut/-as-query :a))))
+    (is (= (core/simple-query :a) (sut/as-query :a))))
   (testing "VectorQuery"
-    (is (= (core/vector-query [(core/simple-query :a)])
-           (sut/-as-query [:a]))))
+    (is (= (core/vector-query [(core/simple-query {::core/type :vector} :a)])
+           (sut/as-query [:a]))))
   (testing "JoinQuery"
-    (is (= (core/join-query (core/simple-query :a)
-                             (core/simple-query :b))
-           (sut/-as-query {:a :b})))))
+    (is (= (core/join-query (core/simple-query {::core/type :join} :a)
+                            (core/simple-query {::core/type :join} :b))
+           (sut/as-query {:a :b})))))
 
