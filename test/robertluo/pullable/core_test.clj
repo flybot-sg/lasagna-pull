@@ -13,7 +13,7 @@
              (sut/-transform q [] [{:a 3} {:a 4 :b 5} {}]))))))
 
 (deftest JoinQuery
-  (let [q (sut/->JoinQuery
+  (let [q (sut/join-query
            (sut/simple-query :a)
            (sut/simple-query :b))]
     (testing "transform simple"

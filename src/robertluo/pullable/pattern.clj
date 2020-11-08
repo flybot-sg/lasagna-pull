@@ -28,7 +28,7 @@
   IPersistentMap
   (-as-query [this]
     (let [[k v] (first this)]
-      (core/->JoinQuery (-as-query k) (-as-query v))))
+      (core/join-query (-as-query k) (-as-query v))))
   IPersistentList
   (-as-query [this]
     (let [[q opt-pairs] (option-map this)

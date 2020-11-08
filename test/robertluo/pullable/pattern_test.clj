@@ -11,7 +11,7 @@
     (is (= (core/->VectorQuery [(core/simple-query :a)])
            (sut/-as-query [:a]))))
   (testing "JoinQuery"
-    (is (= (core/->JoinQuery (core/simple-query :a)
+    (is (= (core/join-query (core/simple-query :a)
                              (core/simple-query :b))
            (sut/-as-query {:a :b})))))
 

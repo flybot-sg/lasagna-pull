@@ -55,6 +55,7 @@
     (default-transform this target m)))
 
 (defn simple-query
+  "Constructor for simple-query"
   ([k]
    (simple-query nil k))
   ([context k]
@@ -68,7 +69,7 @@
                ::none
                (-transform v-query (empty v) v)))))
 
-(defrecord JoinQuery [k-query v-query]
+(defrecord JoinQuery [context k-query v-query]
   Query
   (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
@@ -78,6 +79,13 @@
         (-value-of v-query v))))
   (-transform [this target m]
     (join-transform k-query v-query target m)))
+
+(defn join-query
+  "Constructor for join-query"
+  ([k-q v-q]
+   (join-query nil k-q v-q))
+  ([context k-q v-q]
+   (JoinQuery. context k-q v-q)))
 
 (defrecord VectorQuery [queries]
   Query
