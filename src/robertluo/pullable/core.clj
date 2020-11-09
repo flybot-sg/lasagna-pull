@@ -103,10 +103,17 @@
 ;=======================================================
 ; Implements Findable/Target on common data structures
 
+(defn join-only?
+  [context m]
+  (and (= :join (::type context))
+       (some-> m meta :join-only?)))
+
 (extend-protocol Findable
   ILookup
-  (-select [this k _]
-    (.valAt this k ::none))
+  (-select [this k context]
+    (if (join-only? context this)
+      ::join-only
+      (.valAt this k ::none)))
 
   ;;FIXME clojure's sequence has many different interfaces
   Sequential

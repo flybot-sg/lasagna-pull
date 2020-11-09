@@ -8,10 +8,10 @@
   (testing "SimpleQuery"
     (is (= (core/simple-query :a) (sut/as-query :a))))
   (testing "VectorQuery"
-    (is (= (core/vector-query [(core/simple-query {::core/type :vector} :a)])
+    (is (= (core/vector-query [(core/simple-query {::sut/type :vector} :a)])
            (sut/as-query [:a]))))
   (testing "JoinQuery"
-    (is (= (core/join-query (core/simple-query {::core/type :join} :a)
-                            (core/simple-query {::core/type :join} :b))
+    (is (= (core/join-query (core/simple-query {::sut/type :join-key} :a)
+                            (core/simple-query {::sut/type :join-value} :b))
            (sut/as-query {:a :b})))))
 
