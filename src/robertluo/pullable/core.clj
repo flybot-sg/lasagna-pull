@@ -137,13 +137,15 @@
   (take n (concat coll (repeat value))))
 
 (defn- seq-append
-  [coll k v]
-  (when-not (coll? v)
-    (throw (ex-info "impossible v" {:v v})))
-  (into (empty coll)
-        (map #(-append % k %2)
-             (pad (count v) coll nil)
-             v)))
+  ([coll k v]
+   (seq-append (empty coll) coll k v))
+  ([empty-coll coll k v]
+   (when-not (coll? v)
+     (throw (ex-info "impossible v" {:v v})))
+   (into empty-coll
+         (map #(-append % k %2)
+              (pad (count v) coll nil)
+              v))))
 
 (def ^:const ignore :robertluo.pullable/ignore)
 
@@ -167,4 +169,4 @@
 
   IPersistentSet
   (-append [this k v]
-    (seq-append this k v)))
+    (seq-append [] this k v)))

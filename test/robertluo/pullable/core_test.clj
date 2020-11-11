@@ -32,4 +32,7 @@
              (sut/-transform q {} {:a 3 :b 4 :c 5}))))
     (testing "transform sequence"
       (is (= [{:a 3 :b 4} {:a 3 :b ::sut/none}]
-             (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))))
+             (sut/-transform q [] [{:a 3 :b 4} {:a 3}]))))
+    (testing "set"
+      (is (= [{:a 5 :b 4} {:a 3 :b 6}]
+             (sut/-transform q #{} #{{:a 5 :b 4} {:a 3 :b 6}}))))))

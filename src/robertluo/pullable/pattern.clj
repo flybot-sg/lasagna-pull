@@ -24,14 +24,14 @@
     (core/simple-query context this))
   IPersistentVector
   (-as-query [this context]
-    (let [child-context (assoc context ::type :vector)]
+    (let [child-context (assoc context ::core/type :vector)]
       (core/vector-query context (map #(-as-query % child-context) this))))
   IPersistentMap
   (-as-query [this context]
     (let [[k v] (first this)]
       (core/join-query context
-                       (-as-query k (assoc context ::type :join-key))
-                       (-as-query v (assoc context ::type :join-value)))))
+                       (-as-query k (assoc context ::core/type :join-key))
+                       (-as-query v (assoc context ::core/type :join-value)))))
   IPersistentList
   (-as-query [this context]
     (let [[q opt-pairs] (option-map this)

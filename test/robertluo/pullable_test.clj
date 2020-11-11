@@ -62,5 +62,5 @@
 (deftest set-query
   (testing "sets are also can be queried"
     (let [data #{{:a 5} {:a 8}}]
-      (is (= #{{:a 8} {:a 5}}
+      (is (= [{:a 8} {:a 5}]
              (sut/pull data ':a))))))
