@@ -52,7 +52,7 @@
              (sut/pull data '{{:a :b} :c})))))
   (testing "vector query as a join key make it union join"
     (let [data {:a {:c 5} :b {:c -5}}]
-      (is (= {[:a :b] [{:c -5} {:c 5}]}
+      (is (= {[:a :b] [{:c 5} {:c -5}]}
              (sut/pull data '{[:a :b] :c})))))
   (testing "with query as a key"
     (let [data {:a (fn [i] {:key i :value (str i)})}]
@@ -64,3 +64,11 @@
     (let [data #{{:a 5} {:a 8}}]
       (is (= [{:a 8} {:a 5}]
              (sut/pull data ':a))))))
+
+(deftest bug-issues
+  (testing "#9"
+    (is (= [{:b {:c "1" :d 1}}
+            {:b {:c "2" :d 2}}]
+           (sut/pull [{:b {:c "1" :d 1}}
+                      {:b {:c "2" :d 2}}]
+                     {:b [:c :d]})))))
