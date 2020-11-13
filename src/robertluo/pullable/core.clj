@@ -61,7 +61,6 @@
                ::none
                (-transform v-query (empty v) v)))))
 
-
 (defrecord JoinQuery [context k-query v-query]
   Query
   (-key [_] (concat (-key k-query) (-key v-query)))
@@ -96,14 +95,6 @@
    (vector-query nil queries))
   ([context queries]
    (VectorQuery. context queries)))
- 
-(comment
-  (def q (vector-query [(simple-query :a) (simple-query :b)]))
-  (-value-of q [{:a "1" :b 1} {:a "2" :b 2}])
-  (-transform q
-              []
-              [{:a "1" :b 1} {:a "2" :b 2}])
-  )
 
 (defmulti create-option
   "Create query option"
@@ -112,17 +103,14 @@
 ;=======================================================
 ; Implements Findable/Target on common data structures
 
-(defn join-only?
-  [context m]
-  (and (= :join (::type context))
-       (some-> m meta :join-only?)))
-
 (extend-protocol Findable
+  Object
+  (-select [_ _ _]
+    ::not-selectable)
+
   ILookup
   (-select [this k context]
-    (if (join-only? context this)
-      ::join-only
-      (.valAt this k ::none)))
+    (.valAt this k ::none))
 
   ;;FIXME clojure's sequence has many different interfaces
   Sequential
