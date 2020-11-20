@@ -57,7 +57,9 @@
   [k-query v-query target m]
   (let [v (-value-of k-query m)]
     (-append target (-key k-query)
-             (-transform v-query (empty v) v))))
+             (if (= v ::none)
+               ::none
+               (-transform v-query (empty v) v)))))
 
 (defrecord JoinQuery [context k-query v-query]
   Query
