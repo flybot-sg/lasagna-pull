@@ -73,6 +73,6 @@
                       {:b {:c "2" :d 2}}]
                      {:b [:c :d]}))))
   (testing "#10"
-    (is (= {:a {:b 1 :c :robertluo.pullable.core/none}}
+    (is (= {:a {:b 1 :c sut/NONE}}
          (sut/pull {:a (fn [x] {:b x})}
                    {'(:a :with [1]) [:b {:c [:d]}]})))))
