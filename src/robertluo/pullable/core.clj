@@ -64,9 +64,7 @@
   (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
     (let [v (-value-of k-query m)]
-      (if (= v ::none)
-        ::none
-        (-value-of v-query v))))
+      (-value-of v-query v)))
   (-transform [this target m]
     (join-transform k-query v-query target m)))
 
@@ -106,6 +104,13 @@
   (-select [_ _ _]
     ::not-selectable)
 
+  ;;handle the special case that joining on ::none
+  clojure.lang.Keyword
+  (-select [this _ _]
+    (if (= this ::none)
+      ::none-join
+      ::not-selectable))
+
   ILookup
   (-select [this k context]
     (.valAt this k ::none))
@@ -138,7 +143,7 @@
    (when-not (coll? v)
      (throw (ex-info "impossible v" {:v v})))
    (into empty-coll
-         (map #(-append % k %2)
+         (map (fn [x v] (if (= v ::none-join) ::none (-append x k v)))
               (pad (count v) coll nil)
               v))))
 

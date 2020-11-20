@@ -20,8 +20,8 @@
       (is (= {:a {:b 3}}
              (sut/-transform q {} {:a {:b 3 :c 5}}))))
     (testing "transform sequence"
-      (is (= ({:a [{:b 3}]}
-              sut/-transform q {} {:a [{:b 3}]}))))
+      (is (= {:a [{:b 3}]}
+             (sut/-transform q {} {:a [{:b 3}]}))))
     (testing "transform partial keys"
       (is (= [{:a {:b 3}} {:a ::sut/none}]
              (sut/-transform q [] [{:a {:b 3}} {}]))))))
