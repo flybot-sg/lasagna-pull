@@ -1,6 +1,6 @@
 (ns robertluo.pullable.option-test
   (:require
-   [clojure.test :refer [deftest is]]
+   [clojure.test :refer [deftest is testing]]
    [robertluo.pullable.option]
    [robertluo.pullable.core :as core])
   (:import

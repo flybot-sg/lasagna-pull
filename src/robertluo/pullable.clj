@@ -32,3 +32,10 @@
   ([data ptn]
    (run data (query ptn))))
 
+(def ^:const NONE
+  "A constant that means no value corresponding for the query"
+  ::core/none)
+
+(def ^:const IGNORE
+  "A constant that means ignore the query if not found"
+  ::core/ignore)

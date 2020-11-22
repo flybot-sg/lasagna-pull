@@ -71,4 +71,8 @@
             {:b {:c "2" :d 2}}]
            (sut/pull [{:b {:c "1" :d 1}}
                       {:b {:c "2" :d 2}}]
-                     {:b [:c :d]})))))
+                     {:b [:c :d]}))))
+  (testing "#10"
+    (is (= {:a {:b 1 :c sut/NONE}}
+         (sut/pull {:a (fn [x] {:b x})}
+                   {'(:a :with [1]) [:b {:c [:d]}]})))))

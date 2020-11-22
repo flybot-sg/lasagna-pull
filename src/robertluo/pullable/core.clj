@@ -22,7 +22,7 @@
 (defprotocol Findable
   "Source of data"
   :extend-via-metadata true
-  (-select [target k context]
+  (-select [target k]
     "returns value of target on k"))
 
 (defprotocol Target
@@ -38,20 +38,18 @@
   [query target m]
   (-append target (-key query) (-value-of query m)))
 
-(defrecord SimpleQuery [context k]
+(defrecord SimpleQuery [k]
   Query
   (-key [_] [k])
   (-value-of [_ m]
-    (-select m k context))
+    (-select m k))
   (-transform [this target m]
     (default-transform this target m)))
 
 (defn simple-query
   "Constructor for simple-query"
   ([k]
-   (simple-query nil k))
-  ([context k]
-   (SimpleQuery. context k)))
+   (SimpleQuery. k)))
 
 (defn- join-transform
   [k-query v-query target m]
@@ -61,15 +59,12 @@
                ::none
                (-transform v-query (empty v) v)))))
 
-
 (defrecord JoinQuery [context k-query v-query]
   Query
   (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
     (let [v (-value-of k-query m)]
-      (if (= v ::none)
-        ::none
-        (-value-of v-query v))))
+      (-value-of v-query v)))
   (-transform [this target m]
     (join-transform k-query v-query target m)))
 
@@ -96,14 +91,6 @@
    (vector-query nil queries))
   ([context queries]
    (VectorQuery. context queries)))
- 
-(comment
-  (def q (vector-query [(simple-query :a) (simple-query :b)]))
-  (-value-of q [{:a "1" :b 1} {:a "2" :b 2}])
-  (-transform q
-              []
-              [{:a "1" :b 1} {:a "2" :b 2}])
-  )
 
 (defmulti create-option
   "Create query option"
@@ -112,32 +99,36 @@
 ;=======================================================
 ; Implements Findable/Target on common data structures
 
-(defn join-only?
-  [context m]
-  (and (= :join (::type context))
-       (some-> m meta :join-only?)))
-
 (extend-protocol Findable
+  Object
+  (-select [_ _]
+    ::not-selectable)
+
+  ;;handle the special case that joining on ::none
+  clojure.lang.Keyword
+  (-select [this _]
+    (if (= this ::none)
+      ::none-join
+      ::not-selectable))
+
   ILookup
-  (-select [this k context]
-    (if (join-only? context this)
-      ::join-only
-      (.valAt this k ::none)))
+  (-select [this k]
+    (.valAt this k ::none))
 
   ;;FIXME clojure's sequence has many different interfaces
   Sequential
-  (-select [this k context]
-    (map #(-select % k context) this))
+  (-select [this k]
+    (map #(-select % k) this))
 
   ;;FIXME a vector is also ILookup enabled, choose this sacrificed select
   ;;element based on index
   APersistentVector
-  (-select [this k context]
-    (map #(-select % k context) this))
+  (-select [this k]
+    (map #(-select % k) this))
 
   IPersistentSet
-  (-select [this k context]
-    (map #(-select % k context) this)))
+  (-select [this k]
+    (map #(-select % k) this)))
 
 (defn pad
   "returns a coll which has `n` length, with `coll` fill in first, then pad with
@@ -152,14 +143,12 @@
    (when-not (coll? v)
      (throw (ex-info "impossible v" {:v v})))
    (into empty-coll
-         (map #(-append % k %2)
+         (map (fn [x v] (if (= v ::none-join) ::none (-append x k v)))
               (pad (count v) coll nil)
               v))))
 
-(def ^:const ignore :robertluo.pullable/ignore)
-
 (defn- append [x k v]
-  (if (not= v ignore)
+  (if (not= v ::ignore)
     (assoc-in x k v)
     x))
 
