@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [ master ]
 
+# Workaround for clojure action
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
