@@ -5,6 +5,7 @@
 
 (deftest pull
   (let [data {:int 8
+              :nil nil
               :map {:int 9
                     :kw  :foo
                     :recur [{:int 10 :recur [{:int 100 :recur [{:int 1000}]}]}
@@ -37,7 +38,10 @@
              (sut/pull data '(:fn :with ["hello" " " "world"])))))
     (testing ":with option can be pulled as if it is a normal one"
       (is (= {:fn2 {:val 8}}
-             (sut/pull data '(:fn2 :with [7])))))))
+             (sut/pull data '(:fn2 :with [7])))))
+    (testing "join on a non-selectable value"
+      (is (= {:nil {:a :robertluo.pullable.core/not-selectable}}
+             (sut/pull data {:nil :a}))))))
 
 (deftest simple
   (is (= [{:a 3} {:a 5}]
