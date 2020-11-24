@@ -100,6 +100,10 @@
 ; Implements Findable/Target on common data structures
 
 (extend-protocol Findable
+  nil
+  (-select [_ _]
+    ::not-selectable)
+
   Object
   (-select [_ _]
     ::not-selectable)
