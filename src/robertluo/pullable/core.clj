@@ -161,6 +161,10 @@
   (-append [this k v]
     (append this k v))
 
+  Object
+  (-append [this k v]
+    this)
+
   IPersistentMap
   (-append [this k v]
     (append this k v))

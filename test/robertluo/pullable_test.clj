@@ -79,4 +79,9 @@
   (testing "#10"
     (is (= {:a {:b 1 :c sut/NONE}}
          (sut/pull {:a (fn [x] {:b x})}
-                   {'(:a :with [1]) [:b {:c [:d]}]})))))
+                   {'(:a :with [1]) [:b {:c [:d]}]}))))
+  (testing "#13"
+    (is (= {:f [{:a :robertluo.pullable.core/none}
+                {:a :robertluo.pullable.core/none}]}
+           (sut/pull {:f (constantly {})}
+                     {'(:f :batch [[1] [2]]) [{:a [:b {:c [:d]}]}]})))))
