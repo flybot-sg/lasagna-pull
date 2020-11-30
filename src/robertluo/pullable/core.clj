@@ -59,7 +59,7 @@
                ::none
                (-transform v-query (empty v) v)))))
 
-(defrecord JoinQuery [context k-query v-query]
+(defrecord JoinQuery [k-query v-query]
   Query
   (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
@@ -71,11 +71,9 @@
 (defn join-query
   "Constructor for join-query"
   ([k-q v-q]
-   (join-query nil k-q v-q))
-  ([context k-q v-q]
-   (JoinQuery. context k-q v-q)))
+   (JoinQuery. k-q v-q)))
 
-(defrecord VectorQuery [context queries]
+(defrecord VectorQuery [queries]
   Query
   (-key [_] [(mapcat -key queries)])
   (-value-of [_ m]
@@ -88,9 +86,7 @@
 (defn vector-query
   "constructor of a vector query"
   ([queries]
-   (vector-query nil queries))
-  ([context queries]
-   (VectorQuery. context queries)))
+   (VectorQuery. queries)))
 
 (defmulti create-option
   "Create query option"
