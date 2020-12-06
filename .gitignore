@@ -2,3 +2,5 @@
 .nrepl-*
 target/
 .rebel*
+.clj-kondo/
+.lsp/
