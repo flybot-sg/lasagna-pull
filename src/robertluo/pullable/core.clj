@@ -65,7 +65,7 @@
   (-value-of [_ m]
     (let [v (-value-of k-query m)]
       (-value-of v-query v)))
-  (-transform [this target m]
+  (-transform [_ target m]
     (join-transform k-query v-query target m)))
 
 (defn join-query
@@ -78,7 +78,7 @@
   (-key [_] [(mapcat -key queries)])
   (-value-of [_ m]
     (map #(-value-of % m) queries))
-  (-transform [this target m]
+  (-transform [_ target m]
     (reduce (fn [t q] (-transform q t m))
             target
             queries)))
