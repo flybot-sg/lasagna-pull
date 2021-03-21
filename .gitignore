@@ -4,3 +4,4 @@ target/
 .rebel*
 .clj-kondo/
 .lsp/
+.calva/
