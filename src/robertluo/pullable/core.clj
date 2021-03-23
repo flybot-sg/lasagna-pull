@@ -63,6 +63,7 @@
   Query
   (-key [_] (concat (-key k-query) (-key v-query)))
   (-value-of [_ m]
+    ;FIXME should this be a combination of transformation?
     (let [v (-value-of k-query m)]
       (-value-of v-query v)))
   (-transform [_ target m]
@@ -77,6 +78,7 @@
   Query
   (-key [_] [(mapcat -key queries)])
   (-value-of [_ m]
+    ;FIXME map will change the shape of data
     (map #(-value-of % m) queries))
   (-transform [_ target m]
     (reduce (fn [t q] (-transform q t m))
