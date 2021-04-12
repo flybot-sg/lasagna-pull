@@ -13,7 +13,7 @@
   "Can query on a data structure, return the value of its key, also able
    to transform another data structure"
   (-key [query]
-    "returns the key of the query, should be a vector")
+    "returns the key of the query")
   (-value-of [query m]
     "run query on m, return the value")
   (-transform [this target m]
@@ -51,6 +51,34 @@
   ([k]
    (SimpleQuery. k)))
 
+(comment
+  (def q (simple-query :a))
+  (-key q)
+  (-value-of q {:a 3})
+  (-value-of q [{:a 5} {:a 3}]))
+
+(defn vector-value-of
+  [children target]
+  (reduce (fn [rslt q]
+            (-append rslt (-key q) (-value-of q target)))
+          (empty target) children))
+
+(comment
+  (vector-value-of [(simple-query :a) (simple-query :b)]
+                   {:a 3 :b 4 :c 5})
+  )
+
+(defrecord VectorQuery [queries]
+  Query
+  (-key [_] [(mapcat -key queries)])
+  (-value-of [_ m]
+    (vector-value-of queries m)))
+
+(defn vector-query
+  "constructor of a vector query"
+  ([queries]
+   (VectorQuery. queries)))
+
 (defn- join-transform
   [k-query v-query target m]
   (let [v (-value-of k-query m)]
@@ -73,22 +101,6 @@
   "Constructor for join-query"
   ([k-q v-q]
    (JoinQuery. k-q v-q)))
-
-(defrecord VectorQuery [queries]
-  Query
-  (-key [_] [(mapcat -key queries)])
-  (-value-of [_ m]
-    ;FIXME map will change the shape of data
-    (map #(-value-of % m) queries))
-  (-transform [_ target m]
-    (reduce (fn [t q] (-transform q t m))
-            target
-            queries)))
-
-(defn vector-query
-  "constructor of a vector query"
-  ([queries]
-   (VectorQuery. queries)))
 
 (defmulti create-option
   "Create query option"
