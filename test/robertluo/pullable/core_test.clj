@@ -20,3 +20,10 @@
       (is (= {:a 3 :b 4} (sut/-value-of q {:a 3 :b 4 :c 5}))))
     (testing "a value of a vector of maps for a vector query is also a vector of maps"
       (is (= [{:a 3 :b 4} {:a 2 :b ::sut/none}] (sut/-value-of q [{:a 3 :b 4 :c 3} {:a 2 :c 6}]))))))
+
+(deftest join-query
+  (let [q (sut/join-query (sut/simple-query :a) (sut/simple-query :b))]
+    (testing "key of a join query is the joining of keys of key/value queries"
+      (= [[:a :b]] (sut/-key q)))
+    (testing "value of a join query is the value of value query"
+      (= (sut/-value-of (sut/simple-query :b) {:b 3}) (sut/-value-of q {:a {:b 3}})))))
