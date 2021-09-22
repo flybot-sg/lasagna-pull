@@ -25,12 +25,12 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    - uses: DeLaGuardo/setup-clojure@2.0
+    - uses: DeLaGuardo/setup-clojure@3.5
       with:
-        tools-deps: '1.10.1.727'
+        tools-deps: '1.10.3.981'
     - uses: actions/cache@v2
       with:
         path: ~/.m2
         key: default-build
-    - run: clojure -M:dev:test
+    - run: clojure -T:build ci
     - uses: codecov/codecov-action@v1
