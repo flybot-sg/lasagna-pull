@@ -27,7 +27,7 @@ jobs:
 
     - uses: DeLaGuardo/setup-clojure@2.0
       with:
-        tools-deps: '1.10.1.727'
+        tools-deps: '1.10.3.981'
     - uses: actions/cache@v2
       with:
         path: ~/.m2
