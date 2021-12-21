@@ -1,36 +1,27 @@
-(ns robertluo.pullable.query)
+(ns robertluo.pullable.query
+  "The core construct of queries")
 
-(defn simple-query [kw]
+(defn fn-query
+  "A query that takes a single argument function f"
+  [next-fn f]
   (fn [data]
-    (let [value (kw data)]
-      [#(assoc (empty data) % %2) kw value])))
-
-(defn run-query [q data]
-  (let [[f k v] (q data)]
-    (f k v)))
+    (assoc (empty data) f (-> data f next-fn))))
 
 (comment
-  (run-query (simple-query :a) {:a 3})
+  ((fn-query identity :a) {:a 3 :b 4})
+  ((fn-query (fn-query identity :b) :a) {:a {:b 3 :c 4}})
   )
 
-(defn join-query 
-  [key-query value-query]
+(defn vector-query
+  "A query that takes multiple queries as childen, apply them
+   seperatedly on data, then merge the result together"
+  [next-fn & children]
   (fn [data]
-    (let [[f-k k-k v-k] (key-query data)
-          [f-v k-v v-v] (value-query v-k)
-          val (f-v k-v v-v)]
-      [f-k k-k val])))
+    (->> (map #(-> data % next-fn) children)
+         (apply merge))))
 
 (comment
-  (run-query (join-query (simple-query :a) (simple-query :b)) {:a {:b 3 :c 5}}))
-
-(defn vector-query [& children]
-  (fn [data]
-    [#(apply merge %2) children (map #(run-query % data) children)]))
-
-(comment
-  (run-query (vector-query (simple-query :a) (simple-query :b)) {:a 3 :b 4})
-  (run-query (join-query (simple-query :a)
-                         (vector-query (simple-query :b)
-                                       (simple-query :c)))
-             {:a {:b 3 :c 5 :d 7}}))
+  ((vector-query identity (fn-query identity :a) (fn-query identity :b)) {:a 3 :b 4 :c 5})
+  ((fn-query (vector-query identity 
+                           (fn-query identity :b)
+                           (fn-query identity :c)) :a) {:a {:b 2 :c 3 :d 4} :e 5}))
