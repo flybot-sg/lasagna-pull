@@ -22,3 +22,9 @@
       (is (= [{:a 1} {:a 2} {}] (sut/run :a data))))
     (let [data [{:a [{:b 1} {:b 2 :c 4} {:c 5}]}]]
       (is (= [{:a [{:b 1} {:b 2} {}]}] (sut/run [{:a [:b]}] data))))))
+
+(deftest options
+  (testing "as option can rename key"
+    (is (= {"a" 3} (sut/run (list :a :as name) {:a 3}))))
+  (testing "not-found option can replace value if not found"
+    (is (= {:a ::ok} (sut/run '(:a :not-found ::ok) {:b 3})))))
