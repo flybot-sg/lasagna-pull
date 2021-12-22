@@ -1,11 +1,20 @@
 (ns robertluo.pullable.query
-  "The core construct of queries")
+  "The core construct of queries.
+   A query is a continuation function which take abitary data as its argument,
+   returns a derived data structure.
+   
+   Continuation means it takes the next step as an argument, each query
+   will call its next step. This is a natural way to express join.")
 
 (defn fn-query
-  "A query that takes a single argument function f"
-  [next-fn f]
-  (fn [data]
-    (assoc (empty data) f (-> data f next-fn))))
+  "Returns a query that takes single-arity function `f`,
+   it will assoc to the result data with key by apply `kf` to `f`,
+   and `f data` as the value"
+  ([next-fn f]
+   (fn-query identity next-fn f))
+  ([kf next-fn f]
+   (fn [data]
+     (assoc (empty data) (kf f) (-> data f next-fn)))))
 
 (comment
   ((fn-query identity :a) {:a 3 :b 4})
@@ -14,7 +23,7 @@
 
 (defn vector-query
   "A query that takes multiple queries as childen, apply them
-   seperatedly on data, then merge the result together"
+   seperatedly on data, then merge the result together."
   [next-fn children]
   (fn [data]
     (->> (map #(-> data % next-fn) children)
@@ -29,18 +38,20 @@
   )
 
 (defn seq-decorator
+  "Decorate `query` with the ablitity to automatically distinguish a sequence and
+   a normal value, for a sequence, it will map `query` on data."
   [query]
   (fn [data]
     (cond
-      (map? data) (query data query)
       (sequential? data) (map query data)
-      :else (throw (ex-info "Wrong data shape" {:data data})))))
+      :else (query data))))
 
 (comment
   ((seq-decorator (fn-query identity :a)) [{:a 3 :b 5} {:a 4} {:b 3}])
   )
 
 (defn as-query
+  "Construct query from pull expression x."
   ([x]
    (as-query identity x))
   ([next-fn x]
