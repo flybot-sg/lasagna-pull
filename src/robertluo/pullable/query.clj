@@ -14,7 +14,9 @@
    (fn-query identity next-fn f))
   ([kf next-fn f]
    (fn [data]
-     (assoc (empty data) (kf f) (-> data f next-fn)))))
+     (let [v (-> data f next-fn)]
+       (cond-> (empty data)
+         (not (nil? v)) (assoc (kf f) v))))))
 
 (comment
   ((fn-query identity :a) {:a 3 :b 4})
@@ -55,24 +57,29 @@
   ([x]
    (as-query identity x))
   ([next-fn x]
-   (cond
-     (vector? x)
-     (->> (map as-query x)
-          (vector-query next-fn))
+   (let [fn-query (comp seq-decorator fn-query)
+         vector-query (comp seq-decorator vector-query)]
+     (cond
+       (vector? x)
+       (->> (map as-query x)
+            (vector-query next-fn))
 
-     (map? x)
-     (->> (map (fn [[k v]] (as-query (as-query v) k)) x)
-          (vector-query next-fn))
+       (map? x)
+       (->> (map (fn [[k v]] (as-query (as-query v) k)) x)
+            (vector-query next-fn))
 
-     (ifn? x)
-     (fn-query next-fn x)
+       (ifn? x)
+       (fn-query next-fn x)
 
-     :else
-     (throw (ex-info "Unable to be a query" {:x x})))))
+       :else
+       (throw (ex-info "Unable to be a query" {:x x}))))))
+
+(defn run
+  "run pull expression `x` on `data`, returns pull result."
+  [x data]
+  ((as-query x) data))
 
 (comment
-  ((as-query [:a :b]) {:a 4 :b 5 :c 3})
-  ((as-query :a) {:a 5})
-  ((as-query {:a [:b]}) {:a {:b 3 :c 4}})
+  (run {:a [:b]} {:a {:b 3 :c 4}})
   )
 
