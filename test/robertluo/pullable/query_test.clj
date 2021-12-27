@@ -1,6 +1,6 @@
 (ns robertluo.pullable.query-test
   (:require [robertluo.pullable.query :as sut]
-            [clojure.test :refer [deftest is testing]]))
+            [clojure.test :refer [deftest is testing are]]))
 
 (deftest simple-query-test
   (testing "key of simple query"
@@ -32,3 +32,10 @@
       (is (= [3 5 7] (sut/-value q [{:a 3} {:a 5 :b 1} {:a 7 :b 2}]))))
     (testing "matching of seq query"
       (is (= [{:a 3} {:a 4} {}] (sut/-matching q [{:a 3 :b 1} {:a 4} {}]))))))
+
+(deftest run-test
+  (are [x data exp] (= exp (sut/run x data))
+    '{:a ?}           {:a 3 :b 4}          {:a 3}
+    '{:a ? :b ?}      {:a 3 :b 4 :c 5}     {:a 3 :b 4}
+    '{:a {:b ?}}      {:a {:b 4 :c 5}}     {:a {:b 4}}
+    '[{:a ? :b ?}]    [{:a 1} {:a 2 :b 3}] [{:a 1} {:a 2 :b 3} {}]))
