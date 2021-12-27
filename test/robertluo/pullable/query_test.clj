@@ -1,34 +1,34 @@
 (ns robertluo.pullable.query-test
   (:require [robertluo.pullable.query :as sut]
-            [clojure.test :refer [deftest is are testing]]))
+            [clojure.test :refer [deftest is testing]]))
 
-;;To make the tests simpler, I am going to wire the pull expression
-;;directly.
+(deftest simple-query-test
+  (testing "key of simple query"
+    (is (= :a (sut/-key (sut/simple-query :a)))))
+  (testing "value of simple query"
+    (is (= 4 (sut/-value (sut/simple-query :a) {:a 4}))))
+  (testing "matching of simple query"
+    (is (= {:a 3} (sut/-matching (sut/simple-query :a) {:a 3 :b 4}))))
+  (testing "simple query with child"
+    (is (= {:a {:b 4}} 
+           (sut/-matching 
+            (sut/simple-query :a :a (sut/simple-query :b))
+            {:a {:b 4 :c 5}})))))
 
-(deftest simple-pull
-  (testing "Simple structure pull"
-    (let [data {:a {:b 1 :c 2 :d 3} :e 4 :f {:g 4}}]
-      (are [x exp] (= exp (sut/run x data))
-        :e                {:e 4}
-        [:e]              {:e 4}
-        :g                {}
-        {:a :b}           {:a {:b 1}}
-        {:a [:c :d]}      {:a {:c 2 :d 3}}
-        {:a [:c] :f [:g]} {:a {:c 2} :f {:g 4}}))))
+(deftest vector-query-test
+  (let [q (sut/vector-query [(sut/simple-query :a) (sut/simple-query :b)])]
+    (testing "key of vector query"
+      (is (= [:a :b] (sut/-key q))))
+    (testing "value of vector query"
+      (is (= [3 5] (sut/-value q {:a 3 :b 5}))))
+    (testing "mathing of vector query"
+      (is (= {:a 3 :b 4} (sut/-matching q {:a 3 :b 4 :c 5}))))))
 
-(deftest seq-pull
-  (testing "Explicit sequence handling"
-    (let [data [{:a 1} {:a 2 :b 3} {:b 4}]]
-      (is (= [{:a 1} {:a 2} {}] (sut/run '(:a) data))))
-    (let [data [{:a [{:b 1} {:b 2 :c 4} {:c 5}]}]]
-      (is (= [{:a [{:b 1} {:b 2} {}]}] (sut/run '({:a (:b)}) data))))))
-
-#_(deftest options
-  (testing "as option can rename key"
-    (is (= {"a" 3} (sut/run (list :a :as name) {:a 3}))))
-  (testing "not-found option can replace value if not found"
-    (is (= {:a ::ok} (sut/run '(:a :not-found ::ok) {:b 3}))))
-  (testing "with option invokes function in value"
-    (is (= {:a 3} (sut/run (list :a :with [2]) {:a inc}))))
-  (testing "seq option limits the range"
-    (is (= [{:a 2} {:a 3} {:a 4}] (sut/run '(:a :seq [2 3]) [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4} {:a 5}])))))
+(deftest seq-query-test
+  (let [q (sut/seq-query (sut/simple-query :a))]
+    (testing "key of seq-query"
+      (is (= :a (sut/-key q))))
+    (testing "value of seq-query"
+      (is (= [3 5 7] (sut/-value q [{:a 3} {:a 5 :b 1} {:a 7 :b 2}]))))
+    (testing "matching of seq query"
+      (is (= [{:a 3} {:a 4} {}] (sut/-matching q [{:a 3 :b 1} {:a 4} {}]))))))
