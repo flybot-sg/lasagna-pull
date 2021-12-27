@@ -67,23 +67,21 @@
 (defn as-query
   "Construct query from pull expression x."
   ([x]
-   (as-query x identity))
-  ([x next-fn]
    (cond
      (vector? x)
-     (-> (map #(as-query % identity) x)
-         (vector-query next-fn identity))
+     (-> (map as-query x)
+         (vector-query))
 
      (map? x)
-     (-> (map (fn [[k v]] (as-query k (as-query v))) x)
-         (vector-query next-fn identity))
+     (-> (map (fn [[k v]] (fn-query k (as-query v) identity)) x)
+         (vector-query))
 
      (list? x)
      (-> (map #(seq-query (as-query %)) x)
-         (vector-query next-fn identity))
+         (vector-query))
 
      (ifn? x)
-     (fn-query x next-fn identity)
+     (fn-query x)
 
      :else
      (throw (ex-info "Unable to be a query" {:x x})))))
