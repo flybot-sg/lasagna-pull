@@ -39,3 +39,10 @@
     '{:a ? :b ?}      {:a 3 :b 4 :c 5}     {:a 3 :b 4}
     '{:a {:b ?}}      {:a {:b 4 :c 5}}     {:a {:b 4}}
     '[{:a ? :b ?}]    [{:a 1} {:a 2 :b 3}] [{:a 1} {:a 2 :b 3}]))
+
+(deftest variable-matching
+  (are [x data exp] (= exp (-> (sut/matching x data) second))
+    '{:a ?a :b ?b}   {:a 3 :b 4}          '{a 3 b 4}
+    '{:a {:b ?b}}    {:a {:b 1}}          '{b 1}
+    '[{:a ?} ?a]     [{:a 1} {:a 2 :b 3}] '{a [{:a 1} {:a 2}]}
+    ))

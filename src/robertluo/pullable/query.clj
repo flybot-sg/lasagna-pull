@@ -17,36 +17,45 @@
   (-matching [query data] "returns the matching result of `data`"))
 
 (defprotocol ValueMatcher
-  (-matches [matcher val] "predict if matcher matches `val`"))
+  (-matches? 
+   [matcher val]
+   "predict if `matcher` matches `val`"))
+
+(defn continue? [v]
+  (not= IGNORE v))
 
 (defrecord AnyMatcher []
   ValueMatcher
-  (-matches [_ val]
-    (not= val IGNORE)))
+  (-matches? [_ val]
+    (when (continue? val)
+      val)))
 
 (def any-matcher ->AnyMatcher)
 
-(defrecord FnMatcher [f]
+(defrecord NamedMatcher [f g]
   ValueMatcher
-  (-matches 
+  (-matches?
    [_ val]
-   (f val)))
+   (let [v (f val)]
+     #dbg
+     (when (continue? (f val))
+       (g v)))))
 
-(def fn-matcher ->FnMatcher)
+(defn named-matcher
+  ([f]
+   (named-matcher f identity))
+  ([f g]
+   (->NamedMatcher f g)))
 
-(defrecord NamedMatcher [atom-bindings variable-name f]
-  ValueMatcher
-  (-matches
-   [_ val]
-   (when (f val)
-     (swap! atom-bindings assoc variable-name val))))
-
-(def named-matcher ->NamedMatcher)
+(comment
+  (-matches? (any-matcher) IGNORE)
+  (-matches? (any-matcher) 3)
+  )
 
 (defn matches [query data]
   (let [v (-value query data)]
     (cond-> {}
-      (not= IGNORE v) (assoc (-key query) v))))
+      (continue? v) (assoc (-key query) v))))
 
 (defrecord SimpleQuery [k f child matcher]
   Query
@@ -54,7 +63,7 @@
   (-value
     [_ data]
     (let [val (f data)]
-      (if-not (-matches matcher val)
+      (if-not (-matches? matcher val)
         IGNORE
         (if child
           (-matching child val)
@@ -83,7 +92,7 @@
    [this data]
    (->> data
         (-value this)
-        (filter #(-matches matcher %))
+        (filter #(-matches? matcher %))
         (map vector (map -key queries))
         (into {}))))
 
@@ -93,7 +102,7 @@
   ([queries matcher]
    (->VectorQuery queries matcher)))
 
-(defrecord SeqQuery [q]
+(defrecord SeqQuery [q matcher]
   Query
   (-key [_] (-key q))
   (-value
@@ -101,17 +110,22 @@
    (map #(-value q %) data))
   (-matching
    [_ data]
-   (map #(-matching q %) data)))
+   (let [v (map #(-matching q %) data)]
+     #dbg
+     (when (-matches? matcher v)
+       v))))
 
-(def seq-query ->SeqQuery)
-
-(def matching -matching)
+(defn seq-query
+  ([q]
+   (seq-query q (any-matcher)))
+  ([q matcher]
+   (->SeqQuery q matcher)))
 
 (comment
-  (matching (simple-query :a) {:a 3 :b 4})
-  (matching (simple-query :a :a (simple-query :b)) {:a {:b 3 :c 4}})
-  (matching (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5})
-  (matching (seq-query (vector-query [(simple-query :a) (simple-query :b )])) [{:a 3 :b 4} {:a 5} {}])
+  (-matching (simple-query :a) {:a 3 :b 4})
+  (-matching (simple-query :a :a (simple-query :b)) {:a {:b 3 :c 4}})
+  (-matching (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5})
+  (-matching (seq-query (vector-query [(simple-query :a) (simple-query :b )])) [{:a 3 :b 4} {:a 5} {}])
   )
 
 (defn error
@@ -119,60 +133,68 @@
   (throw (ex-info msg data)))
 
 (defn create-matcher
-  [x atom-bindings]
-  (cond
-    (= x '?) 
-    [false (any-matcher)]
+  ([x]
+   (create-matcher x (fn [_ v] v)))
+  ([x f-binding]
+   (cond
+     (= x '?)
+     [false (any-matcher)]
 
-    (map? x)
-    [true (any-matcher)]
-    
-    (str/starts-with? (str x) "?")
+     (map? x)
+     [true (any-matcher)]
 
-    (let [variable-name (subs (str x) 1)]
-      [false (named-matcher atom-bindings (symbol variable-name) #(not= IGNORE %))])
-    
-    :else
-    [false (fn-matcher #(= % x))]))
+     (str/starts-with? (str x) "?")
+     (let [variable-name (subs (str x) 1)
+           f (partial f-binding (symbol variable-name))]
+       [false (named-matcher identity f)])
+
+     :else
+     [false (named-matcher identity)])))
 
 (comment
-  (create-matcher '? (atom nil))
+  (create-matcher '?)
   (create-matcher '?a (atom nil))
   )
 
 (defn ->query
   ([x]
    (->query x (atom nil)))
-  ([x atom-bindings]
+  ([x f-binding]
    (cond
      (map? x)
      (vector-query
       (for [[k v] x]
-        (let [[child? matcher] (create-matcher v atom-bindings)
-              child (when child? (->query v atom-bindings))]
+        (let [[child? matcher] (create-matcher v f-binding)
+              child (when child? (->query v f-binding))]
           (simple-query k k child matcher))))
 
      (vector? x)
-     (seq-query (->query (first x) atom-bindings))
+     (let [[qx matcher-x] x
+           [_ matcher] (create-matcher matcher-x f-binding)
+           matcher (or matcher (any-matcher))]
+       (seq-query (->query qx f-binding) matcher))
 
      :else
      (error "Not able to construct query" {:x x}))))
 
 (defn matching
   [x data]
-  (let [atom-bindings (atom nil)]
-    [(-matching (->query x atom-bindings) data) @atom-bindings]))
+  (let [atom-bindings (atom nil)
+        f-bindings (fn [variable-name v]
+                     (swap! atom-bindings assoc variable-name v)
+                     v)]
+    [(-matching (->query x f-bindings) data) @atom-bindings]))
 
 (def run (comp first matching))
 
 (comment
   (->query '{:a ? :b ?})
   (->query '{:a {:b ?}})
-  (->query '[{:a ?}])
+  (->query '[{:a ?} ?a])
   (run '{:a 3 :b ?} {:a 4 :b 4})
   (matching '{:a ?a :b {:c ?c}} {:a 3 :b {:c 5} :d 7})
   (run '{:a ? :b ?} {:a 3 :b 4 :c 5})
   (run '{:a {:b ?}} {:a {:b 3 :c 5}})
-  (matching '[{:a ?a}] [{:a 3 :b 4} {}])
+  (matching '[{:a ?} ?a] [{:a 3 :b 4} {}])
   (run '[{:a [{:b ?}]}] [{:a [{:b 3} {:b 4 :c 5}]}])
   )
