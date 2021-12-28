@@ -4,7 +4,8 @@
    returns a derived data structure.
    
    Continuation means it takes the next step as an argument, each query
-   will call its next step. This is a natural way to express join.")
+   will call its next step. This is a natural way to express join."
+  (:require [clojure.string :as str]))
 
 (def IGNORE
   "Ignore value"
@@ -32,6 +33,15 @@
    (f val)))
 
 (def fn-matcher ->FnMatcher)
+
+(defrecord NamedMatcher [atom-bindings variable-name f]
+  ValueMatcher
+  (-matches
+   [_ val]
+   (when (f val)
+     (swap! atom-bindings assoc variable-name val))))
+
+(def named-matcher ->NamedMatcher)
 
 (defn matches [query data]
   (let [v (-value query data)]
@@ -108,28 +118,61 @@
   [msg data]
   (throw (ex-info msg data)))
 
-(defn ->query
-  [x]
+(defn create-matcher
+  [x atom-bindings]
   (cond
+    (= x '?) 
+    [false (any-matcher)]
+
     (map? x)
-    (vector-query (for [[k v] x] (if (= v '?) (simple-query k) (simple-query k k (->query v)))))
+    [true (any-matcher)]
     
-    (vector? x)
-    (seq-query (->query (first x)))
+    (str/starts-with? (str x) "?")
+
+    (let [variable-name (subs (str x) 1)]
+      [false (named-matcher atom-bindings (symbol variable-name) #(not= IGNORE %))])
     
     :else
-    (error "Not able to construct query" {:x x})))
+    [false (fn-matcher #(= % x))]))
 
-(defn run
+(comment
+  (create-matcher '? (atom nil))
+  (create-matcher '?a (atom nil))
+  )
+
+(defn ->query
+  ([x]
+   (->query x (atom nil)))
+  ([x atom-bindings]
+   (cond
+     (map? x)
+     (vector-query
+      (for [[k v] x]
+        (let [[child? matcher] (create-matcher v atom-bindings)
+              child (when child? (->query v atom-bindings))]
+          (simple-query k k child matcher))))
+
+     (vector? x)
+     (seq-query (->query (first x) atom-bindings))
+
+     :else
+     (error "Not able to construct query" {:x x}))))
+
+(defn matching
   [x data]
-  (-matching (->query x) data))
+  (let [atom-bindings (atom nil)]
+    [(-matching (->query x atom-bindings) data) @atom-bindings]))
+
+(def run (comp first matching))
 
 (comment
   (->query '{:a ? :b ?})
   (->query '{:a {:b ?}})
   (->query '[{:a ?}])
+  (run '{:a 3 :b ?} {:a 4 :b 4})
+  (matching '{:a ?a :b {:c ?c}} {:a 3 :b {:c 5} :d 7})
   (run '{:a ? :b ?} {:a 3 :b 4 :c 5})
   (run '{:a {:b ?}} {:a {:b 3 :c 5}})
-  (run '[{:a ?}] [{:a 3 :b 4} {}])
+  (matching '[{:a ?a}] [{:a 3 :b 4} {}])
   (run '[{:a [{:b ?}]}] [{:a [{:b 3} {:b 4 :c 5}]}])
   )
