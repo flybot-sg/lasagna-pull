@@ -15,22 +15,40 @@
   (-value [query data] "returns the value on `data`")
   (-matching [query data] "returns the matching result of `data`"))
 
+(defprotocol ValueMatcher
+  (-matches [matcher val] "predict if matcher matches `val`"))
+
+(defrecord AnyMatcher []
+  ValueMatcher
+  (-matches [_ val]
+    (not= val IGNORE)))
+
+(def any-matcher ->AnyMatcher)
+
+(defrecord FnMatcher [f]
+  ValueMatcher
+  (-matches 
+   [_ val]
+   (f val)))
+
+(def fn-matcher ->FnMatcher)
+
 (defn matches [query data]
   (let [v (-value query data)]
     (cond-> {}
       (not= IGNORE v) (assoc (-key query) v))))
 
-(defrecord SimpleQuery [k f child]
+(defrecord SimpleQuery [k f child matcher]
   Query
   (-key [_] k)
   (-value
     [_ data]
-    (let [v (f data)]
-      (if (= v IGNORE)
+    (let [val (f data)]
+      (if-not (-matches matcher val)
         IGNORE
         (if child
-          (-matching child v)
-          v))))
+          (-matching child val)
+          val))))
   (-matching
    [this data]
    (matches this data)))
@@ -41,24 +59,11 @@
   ([k f]
    (simple-query k f nil))
   ([k f child]
-   (->SimpleQuery k f child)))
+   (simple-query k f child (any-matcher)))
+  ([k f child matcher]
+   (->SimpleQuery k f child matcher)))
 
-(defrecord NotFoundQuery [q not-found]
-  Query
-  (-key [_] (-key q))
-  (-value
-   [_ data]
-   (let [v (-value q data)]
-     (if (= IGNORE v)
-       not-found
-       v)))
-  (-matching 
-   [this data]
-   (matches this data)))
-
-(def not-found-query ->NotFoundQuery)
-
-(defrecord VectorQuery [queries]
+(defrecord VectorQuery [queries matcher]
   Query
   (-key [_] (map -key queries))
   (-value
@@ -66,9 +71,17 @@
    (map #(-value % data) queries))
   (-matching
    [this data]
-   (into {} (map vector (map -key queries) (-value this data)))))
+   (->> data
+        (-value this)
+        (filter #(-matches matcher %))
+        (map vector (map -key queries))
+        (into {}))))
 
-(def vector-query ->VectorQuery)
+(defn vector-query
+  ([queries]
+   (vector-query queries (any-matcher)))
+  ([queries matcher]
+   (->VectorQuery queries matcher)))
 
 (defrecord SeqQuery [q]
   Query
@@ -87,7 +100,6 @@
 (comment
   (matching (simple-query :a) {:a 3 :b 4})
   (matching (simple-query :a :a (simple-query :b)) {:a {:b 3 :c 4}})
-  (matching (not-found-query (simple-query :a) ::ok) {})
   (matching (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5})
   (matching (seq-query (vector-query [(simple-query :a) (simple-query :b )])) [{:a 3 :b 4} {:a 5} {}])
   )
