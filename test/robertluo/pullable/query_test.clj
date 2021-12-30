@@ -22,6 +22,32 @@
       (sut/seq-query (sut/simple-query :a)) [{:a 1} {:a 2}]
       )))
 
+(deftest scalar
+  (testing "a scalar will void a vector query if not match"
+    (are [data exp] (= exp (sut/run-query (sut/vector-query
+                                           [(sut/simple-query :a)
+                                            (sut/scalar (sut/simple-query :b) 2)])
+                                          data))
+      {:a 5 :b 2} {:a 5}
+      {:a 5 :b 1} {})))
+
+#_(deftest named
+  (testing "a single named var matching"
+    (are [data exp] (= exp (sut/run-q* 'a #(sut/vector-query [(% (sut/simple-query :a)) (% (sut/simple-query :b))]) data))
+      {:a 3 :b 3}  [{:a 3 :b 3} {'a 3}]
+      {:a 3 :b 2} [nil {}])))
+
+(deftest run-bind
+  (testing "overall binding running"
+    (are [ptn exp] (= exp (sut/run-bind ptn [{:a 1 :b 2 :c [{:d 3 :e 4}]}
+                                             {:a 5 :b 6}
+                                             {:c [{:e 7 :f 8}]}]))
+      '[{:a ?}]        [[{:a 1} {:a 5} {}] {}]
+      '[{:b ?} ?b]     [[{:b 2} {:b 6} {}] {'?b [{:b 2} {:b 6} {}]}]
+      '[{:a ? :b 2}]   [[{:a 1} {} {}] {}]
+      ;;'[{:c [{:e ?}]}] []
+      )))
+
 (deftest composite-query
   (let [q (sut/seq-query
            (sut/simple-query :a :a (sut/seq-query (sut/vector-query [(sut/simple-query :b) (sut/simple-query :c)]))))
