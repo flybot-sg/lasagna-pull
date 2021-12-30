@@ -15,13 +15,19 @@
 
 ;;== Query implementations
 (defrecord QueryResult [key val f])
+
 (defn qr
+  "returns a query result"
   ([]
    (qr nil nil))
   ([k v]
    (qr k v #(if v {k v} {})))
   ([k v f]
    (->QueryResult k v f)))
+
+(def void?
+  "predict if a query result is void, i.e. not matched."
+  (comp nil? :key))
 
 (defn run-query
   [q data]
@@ -39,8 +45,8 @@
    (fn [data]
      (let [v (f data)]
        (if child
-         (if-let [{:keys [key f]} (child v)]
-           (if (not (nil? key))
+         (if-let [{:keys [f] :as rslt} (child v)]
+           (if-not (void? rslt)
              (qr k (f))
              (qr))
            (qr))
@@ -73,11 +79,11 @@
 (defn seq-query
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
   ([q]
-   (fn [data]
-     (let [qrs (map q data)]
-       (when-let [qrs (seq qrs)]
-         (let [v (map :val qrs)]
-           (qr (-> qrs first :key) v (fn [] v))))))))
+   (fn [data]     
+     (let [qrs (map q data)
+           v (map #((:f %)) qrs)
+           k (when (seq qrs) (-> qrs first :key))]
+       (qr k v (fn [] v))))))
 
 (comment
   (run-query (seq-query (vector-query [(simple-query :a) (simple-query :b)])) [{:a 3 :b 4} {:a 5} {}]))

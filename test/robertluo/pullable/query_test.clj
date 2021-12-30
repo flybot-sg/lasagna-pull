@@ -2,6 +2,26 @@
   (:require [robertluo.pullable.query :as sut]
             [clojure.test :refer [deftest is testing are]]))
 
+(deftest simple-query
+  (testing "simple query returns a single result"
+    (are [q exp] (= exp (sut/run-query q {:a 1 :b {:c 2} :d 3}))
+      (sut/simple-query :a) {:a 1}
+      (sut/simple-query :e) {}
+      (sut/simple-query :b :b (sut/simple-query :c)) {:b {:c 2}})))
+
+(deftest vector-query
+  (testing "vector query returns merged results"
+    (are [q exp] (= exp (sut/run-query q {:a 1 :b {:c 2} :d 3}))
+      (sut/vector-query [(sut/simple-query :a) (sut/simple-query :d)]) {:a 1 :d 3}
+      (sut/vector-query [(sut/simple-query :b :b (sut/simple-query :c))(sut/simple-query :d)]) {:b {:c 2} :d 3}
+      )))
+
+(deftest seq-query
+  (testing "seq query apply maps on a collection"
+    (are [q exp] (= exp (sut/run-query q [{:a 1 :b {}} {:a 2 :b {:c 3} :d 4}]))
+      (sut/seq-query (sut/simple-query :a)) [{:a 1} {:a 2}]
+      )))
+
 (deftest composite-query
   (let [q (sut/seq-query
            (sut/simple-query :a :a (sut/seq-query (sut/vector-query [(sut/simple-query :b) (sut/simple-query :c)]))))
