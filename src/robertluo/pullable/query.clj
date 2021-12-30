@@ -1,200 +1,137 @@
-(ns robertluo.pullable.query
-  "The core construct of queries.
-   A query is a continuation function which take abitary data as its argument,
-   returns a derived data structure.
-   
-   Continuation means it takes the next step as an argument, each query
-   will call its next step. This is a natural way to express join."
-  (:require [clojure.string :as str]))
+(ns robertluo.pullable.query)
 
-(def IGNORE
-  "Ignore value"
-  :pull/ignore)
+(defn any-matcher
+  "Returns a matcher that matches everything"
+  []
+  (fn [val]
+    val))
 
-(defprotocol Query
-  (-key [query] "returns the key of the `query`")
-  (-value [query data] "returns the value on `data`")
-  (-matching [query data] "returns the matching result of `data`"))
-
-(defprotocol ValueMatcher
-  (-matches? 
-   [matcher val]
-   "predict if `matcher` matches `val`"))
-
-(defn continue? [v]
-  (not= IGNORE v))
-
-(defrecord AnyMatcher []
-  ValueMatcher
-  (-matches? [_ val]
-    (when (continue? val)
-      val)))
-
-(def any-matcher ->AnyMatcher)
-
-(defrecord NamedMatcher [f g]
-  ValueMatcher
-  (-matches?
-   [_ val]
-   (let [v (f val)]
-     #dbg
-     (when (continue? (f val))
-       (g v)))))
-
-(defn named-matcher
+(defn fn-matcher
   ([f]
-   (named-matcher f identity))
+   (fn-matcher f identity))
   ([f g]
-   (->NamedMatcher f g)))
+   (fn [val]
+     (some-> val f g))))
 
-(comment
-  (-matches? (any-matcher) IGNORE)
-  (-matches? (any-matcher) 3)
-  )
+;;== Query implementations
+(defrecord QueryResult [key val f])
+(defn qr
+  ([]
+   (qr nil nil))
+  ([k v]
+   (qr k v #(if v {k v} {})))
+  ([k v f]
+   (->QueryResult k v f)))
 
-(defn matches [query data]
-  (let [v (-value query data)]
-    (cond-> {}
-      (continue? v) (assoc (-key query) v))))
-
-(defrecord SimpleQuery [k f child matcher]
-  Query
-  (-key [_] k)
-  (-value
-    [_ data]
-    (let [val (f data)]
-      (if-not (-matches? matcher val)
-        IGNORE
-        (if child
-          (-matching child val)
-          val))))
-  (-matching
-   [this data]
-   (matches this data)))
+(defn run-query
+  [q data]
+  (when-let [{:keys [f]} (q data)]
+    (f)))
 
 (defn simple-query
+  "returns a simple query has key as `k`, `f` to return a value from a map,
+   and `child` query to execute if matches."
   ([k]
-   (simple-query k #(get % k IGNORE)))
+   (simple-query k #(get % k)))
   ([k f]
    (simple-query k f nil))
   ([k f child]
-   (simple-query k f child (any-matcher)))
-  ([k f child matcher]
-   (->SimpleQuery k f child matcher)))
+   (fn [data]
+     (let [v (f data)]
+       (if child
+         (if-let [{:keys [key f]} (child v)]
+           (if (not (nil? key))
+             (qr k (f))
+             (qr))
+           (qr))
+         (qr k v))))))
 
-(defrecord VectorQuery [queries matcher]
-  Query
-  (-key [_] (map -key queries))
-  (-value
-   [_ data]
-   (map #(-value % data) queries))
-  (-matching
-   [this data]
-   (->> data
-        (-value this)
-        (filter #(-matches? matcher %))
-        (map vector (map -key queries))
-        (into {}))))
+(comment
+  (run-query (simple-query :a) {:a 3})
+  (run-query (simple-query :a) {:b 3})
+  (run-query (simple-query :a :a (simple-query :b)) {:a {:b 3}})
+  (run-query (simple-query :a :a (simple-query :b)) {:a 3}))
 
+;; A vector query is a query collection as `queries`
 (defn vector-query
+  "returns a vector query, takes other `queries` as its children,
+   then apply them to data, return the merged map."
   ([queries]
-   (vector-query queries (any-matcher)))
-  ([queries matcher]
-   (->VectorQuery queries matcher)))
+   (fn [data]
+     (when-let [[k v] (->> (map #(% data) queries)
+                           (reduce (fn [[ks rst] {:keys [key val]}]
+                                     (if (nil? key)
+                                       (reduced nil)
+                                       [(conj ks key) (if val (conj rst [key val]) rst)]))
+                                   [[] {}]))]
+       (qr k v (fn [] v))))))
 
-(defrecord SeqQuery [q matcher]
-  Query
-  (-key [_] (-key q))
-  (-value
-   [_ data]
-   (map #(-value q %) data))
-  (-matching
-   [_ data]
-   (let [v (map #(-matching q %) data)]
-     #dbg
-     (when (-matches? matcher v)
-       v))))
+(comment
+  (run-query (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5}))
 
+;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
+  "returns a seq-query which applies query `q` to data (must be a collection) and return"
   ([q]
-   (seq-query q (any-matcher)))
-  ([q matcher]
-   (->SeqQuery q matcher)))
+   (fn [data]
+     (let [qrs (map q data)]
+       (when-let [qrs (seq qrs)]
+         (let [v (map :val qrs)]
+           (qr (-> qrs first :key) v (fn [] v))))))))
 
 (comment
-  (-matching (simple-query :a) {:a 3 :b 4})
-  (-matching (simple-query :a :a (simple-query :b)) {:a {:b 3 :c 4}})
-  (-matching (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5})
-  (-matching (seq-query (vector-query [(simple-query :a) (simple-query :b )])) [{:a 3 :b 4} {:a 5} {}])
-  )
+  (run-query (seq-query (vector-query [(simple-query :a) (simple-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
-(defn error
-  [msg data]
-  (throw (ex-info msg data)))
+(defn scalar
+  "Scalar query will not appear in query result"
+  [q v]
+  (fn [data]
+    (when-let [{:keys [key val]} (q data)]
+      (when (= val v)
+        (qr key nil (constantly nil))))))
 
-(defn create-matcher
-  ([x]
-   (create-matcher x (fn [_ v] v)))
-  ([x f-binding]
-   (cond
-     (= x '?)
-     [false (any-matcher)]
+(defn named-var-factory
+  []
+  (let [sym-table (transient {})]
+    [#(persistent! sym-table)
+     (fn [sym]
+       (let [status (atom :fresh)]
+         (fn [q]
+           (fn [data]
+             (let [{:keys [key val f]} (q data)
+                   new-f (fn []
+                           (when (= @status :found)
+                             (f)))]
+               (case @status
+                 :fresh
+                 (when qr
+                   (assoc! sym-table sym val)
+                   (reset! status :found)
+                   (qr key val new-f))
 
-     (map? x)
-     [true (any-matcher)]
+                 :found
+                 (if (not= (get sym-table sym) val)
+                   (do
+                     (dissoc! sym-table sym)
+                     (reset! status :invalid)
+                     (qr))
+                   (qr key val new-f))
 
-     (str/starts-with? (str x) "?")
-     (let [variable-name (subs (str x) 1)
-           f (partial f-binding (symbol variable-name))]
-       [false (named-matcher identity f)])
-
-     :else
-     [false (named-matcher identity)])))
-
-(comment
-  (create-matcher '?)
-  (create-matcher '?a (atom nil))
-  )
-
-(defn ->query
-  ([x]
-   (->query x (atom nil)))
-  ([x f-binding]
-   (cond
-     (map? x)
-     (vector-query
-      (for [[k v] x]
-        (let [[child? matcher] (create-matcher v f-binding)
-              child (when child? (->query v f-binding))]
-          (simple-query k k child matcher))))
-
-     (vector? x)
-     (let [[qx matcher-x] x
-           [_ matcher] (create-matcher matcher-x f-binding)
-           matcher (or matcher (any-matcher))]
-       (seq-query (->query qx f-binding) matcher))
-
-     :else
-     (error "Not able to construct query" {:x x}))))
-
-(defn matching
-  [x data]
-  (let [atom-bindings (atom nil)
-        f-bindings (fn [variable-name v]
-                     (swap! atom-bindings assoc variable-name v)
-                     v)]
-    [(-matching (->query x f-bindings) data) @atom-bindings]))
-
-(def run (comp first matching))
+                 :invalid
+                 (qr)))))))]))
 
 (comment
-  (->query '{:a ? :b ?})
-  (->query '{:a {:b ?}})
-  (->query '[{:a ?} ?a])
-  (run '{:a 3 :b ?} {:a 4 :b 4})
-  (matching '{:a ?a :b {:c ?c}} {:a 3 :b {:c 5} :d 7})
-  (run '{:a ? :b ?} {:a 3 :b 4 :c 5})
-  (run '{:a {:b ?}} {:a {:b 3 :c 5}})
-  (matching '[{:a ?} ?a] [{:a 3 :b 4} {}])
-  (run '[{:a [{:b ?}]}] [{:a [{:b 3} {:b 4 :c 5}]}])
-  )
+  (run-query (vector-query [(simple-query :a) (scalar (simple-query :b) 2)]) {:a 5 :b 2})
+  (let [[symbols named-var] (named-var-factory)
+        a-var (named-var 'a)]
+    [(run-query (a-var (simple-query :a)) {:a 5 :b 1}) (symbols)])
+
+  (let [[symbols named-var] (named-var-factory)
+        a-var (named-var 'a)]
+    [(run-query (vector-query [(a-var (simple-query :a)) (a-var (simple-query :b))]) {:a 5 :b 5}) (symbols)])
+
+  (let [[symbols named-var] (named-var-factory)
+        a-var (named-var 'a)]
+    [(run-query (vector-query
+                 [(a-var (simple-query :a))
+                  (simple-query :c :c (a-var (simple-query :b)))]) {:a 5 :c {:b 5}}) (symbols)]))
