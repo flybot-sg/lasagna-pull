@@ -1,18 +1,5 @@
 (ns robertluo.pullable.query)
 
-(defn any-matcher
-  "Returns a matcher that matches everything"
-  []
-  (fn [val]
-    val))
-
-(defn fn-matcher
-  ([f]
-   (fn-matcher f identity))
-  ([f g]
-   (fn [val]
-     (some-> val f g))))
-
 ;;== Query implementations
 (defrecord QueryResult [key val f])
 
