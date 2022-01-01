@@ -1,125 +1,149 @@
-(ns robertluo.pullable.query)
+(ns robertluo.pullable.query
+  "Implementation of query")
 
 ;;== Query implementations
-(defrecord QueryResult [key val f])
 
-(defn qr
-  "returns a query result"
-  ([]
-   (qr nil nil))
-  ([k v]
-   (qr k v #(if v {k v} {})))
-  ([k v f]
-   (->QueryResult k v f)))
+(defn term-query
+  "identity query, "
+  ([v]
+   (constantly (constantly v))))
 
-(def void?
-  "predict if a query result is void, i.e. not matched."
-  (comp nil? :key))
+(defn val-acceptor
+  "identity acceptor, ignore k, only return `v`"
+  [_ v]
+  v)
 
 (defn run-query
+  "run a query `q` on `data`, returns the query result function.
+   
+   A query result function has one argument of acceptor, which is
+   another function takes k, v as arguments. The acceptor can be nil,
+   means that the query are free to construct the result."
   [q data]
-  (when-let [{:keys [f]} (q data)]
-    (f)))
+  ((q data) nil))
 
-(defn simple-query
+(comment
+  (run-query (term-query {:a 3}) {}))
+
+(defn accept
+  "General acceptor function design: when k is nil, means there is no
+   match, current progress should fail; when v is nil, means there is
+   no value.
+   
+    - funcition `f-conj`, takes two argements, coll and a k-v pair
+    - `x` is the collection willing to accept"
+  [f-conj x k v]
+  (cond
+    (nil? k) nil
+    (nil? v) x
+    :else    (f-conj x [k v])))
+
+(def sconj 
+  "commonn acceptor using `conj`"
+  (partial accept conj))
+
+(comment
+  (sconj {} :a 1)
+  )
+
+(def map-acceptor
+  "common acceptor using an empty map to accept"
+  (partial sconj {}))
+
+(defn fn-query
   "returns a simple query has key as `k`, `f` to return a value from a map,
    and `child` query to execute if matches."
   ([k]
-   (simple-query k #(get % k)))
+   (fn-query k #(get % k)))
   ([k f]
-   (simple-query k f nil))
+   (fn-query k f nil))
   ([k f child]
-   (fn [data]
-     (let [v (f data)]
-       (if child
-         (if-let [{:keys [f] :as rslt} (child v)]
-           (if-not (void? rslt)
-             (qr k (f))
-             (qr))
-           (qr))
-         (qr k v))))))
+   (fn acc [data]
+     #((or % map-acceptor)
+       k
+       (let [v (f data)]
+         (when (not (nil? v))
+           (let [child-q (or child (term-query v))]
+             ((child-q v) map-acceptor))))))))
 
 (comment
-  (run-query (simple-query :a) {:a 3})
-  (run-query (simple-query :a) {:b 3})
-  (run-query (simple-query :a :a (simple-query :b)) {:a {:b 3}})
-  (run-query (simple-query :a :a (simple-query :b)) {:a 3}))
+  (run-query (fn-query :a) {:a 3})
+  )
 
 ;; A vector query is a query collection as `queries`
 (defn vector-query
   "returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
-  ([queries]
-   (fn [data]
-     (or
-      (when-let [[k v] (->> (map #(% data) queries)
-                            (reduce (fn [[ks rst] {:keys [key val]}]
-                                      (if (nil? key)
-                                        (reduced nil)
-                                        [(conj ks key) (if val (conj rst [key val]) rst)]))
-                                    [[] {}]))]
-        (qr k v (fn [] v)))
-      (qr)))))
+  [queries]
+  (fn [data]
+    (let [collector (transient [])
+          v (->> queries
+                 (reduce (fn [_ q] ((q data) (partial accept conj! collector))) collector)
+                 (persistent!))]
+      #((or % val-acceptor) (map first v) (into {} v)))))
 
 (comment
-  (run-query (vector-query [(simple-query :a) (simple-query :b)]) {:a 3 :c 5}))
+  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7})
+  )
 
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
   ([q]
-   (fn [data]     
-     (let [qrs (map q data)
-           v (map (fn [{:keys [f]}] (f)) qrs)
-           k (when (seq qrs) (-> qrs first :key))]
-       (qr k v (fn [] v))))))
+   (fn [data]
+     (let [v (map #((q %) val-acceptor) data)
+           k (if (seq v) (first v) ::should-never-be-seen)]
+       #((or % val-acceptor) k v)))))
 
 (comment
-  (run-query (seq-query (vector-query [(simple-query :a) (simple-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
+  (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
 (defn scalar
   "Scalar query will not appear in query result"
-  [q v]
+  [q pred]
   (fn [data]
-    (or
-     (when-let [{:keys [key val]} (q data)]
-       (when (= val v)
-         (qr key nil (constantly nil))))
-     (qr))))
+    (let [v ((q data) val-acceptor)]
+      #((or % (partial accept conj {})) (pred v) v))))
+
+(comment
+  (run-query (scalar (fn-query :a) #(= % 3)) {:a 2})
+  )
+
+(defn mk-named-var-query
+  [t-sym-table sym]
+  (with-local-vars [status :fresh]
+    (fn [q]
+      (fn [data]
+        (let [[k v] ((q data) (fn [k v] [k v]))]
+          (case @status
+            :fresh
+            (do
+              (assoc! t-sym-table sym v)
+              (var-set status :bound)
+              #((or % map-acceptor) k v))
+
+            :bound
+            (let [old-v (get @t-sym-table sym ::not-found)]
+              (when (not= v old-v)
+                (dissoc! t-sym-table sym)
+                (var-set status :invalid))
+              #((or % map-acceptor) k v))
+            #((or % map-acceptor) nil v)))))))
+
+(comment
+  (let [a-sym-table (transient {})]
+    [(run-query ((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
+     (persistent! a-sym-table)])
+  )
 
 (defn named-var-factory
   []
-  (let [sym-table (transient {})
-        cx-named (atom {})]
-    [#(persistent! sym-table)
+  (let [t-sym-table (transient {})
+        a-cx-named  (atom {})]
+    [#(persistent! t-sym-table)
      (fn [sym]
-       (or (get @cx-named sym)
-           (let [status (atom :fresh)
-                 f (fn [q]
-                     (fn [data]
-                       (let [{:keys [key val f]} (q data)
-                             new-f (fn []
-                                     (when (= @status :found)
-                                       (f)))]
-                         (case @status
-                           :fresh
-                           (when qr
-                             (assoc! sym-table sym val)
-                             (reset! status :found)
-                             (qr key val new-f))
-
-                           :found
-                           (if (not= (get sym-table sym) val)
-                             (do
-                               (dissoc! sym-table sym)
-                               (reset! status :invalid)
-                               (qr))
-                             (qr key val new-f))
-
-                           :invalid
-                           (qr)))))]
-                      (swap! cx-named assoc sym f)
-                      f)))]))
+       (or (get @a-cx-named sym)
+           (mk-named-var-query t-sym-table sym)))]))
 
 ;;== pattern
 
@@ -134,18 +158,18 @@
      (->> (for [[k v] x]
             (cond
               (= v '?)
-              (simple-query k)
+              (fn-query k)
 
               (lvar? v)
-              ((f-name-var v) (simple-query k))
+              ((f-name-var v) (fn-query k))
 
               (map? v)
-              (simple-query k k (->query f-name-var v))
+              (fn-query k k (->query f-name-var v))
 
               :else
-              (scalar (simple-query k) v)))
+              (scalar (fn-query k) v)))
           (vector-query))
-     
+
      (vector? x)
      (let [[v var] x
            g (if (and var (lvar? var)) (f-name-var var) identity)]
@@ -154,7 +178,7 @@
            (g)))
 
      (keyword? x)
-     (simple-query x)
+     (fn-query x)
 
      :else
      (throw (ex-info (str "Not known pattern: " x) {:x x})))))
@@ -168,5 +192,4 @@
 (comment
   (run-bind '{:a ? :b 2 :c {:d ?d}} {:a 1 :b 2 :c {:d 4}})
   (run-bind '[{:a ?} ?x] [{:a 1} {:b 1}])
-  (run-bind '[{:b ?b}] [{:a 1, :b 2, :c [{:d 3, :e 4}]} {:a 5, :b 6} {:c [{:e 7, :f 8}]}])
-  )
+  (run-bind '[{:b ?b}] [{:a 1, :b 2, :c [{:d 3, :e 4}]} {:a 5, :b 6} {:c [{:e 7, :f 8}]}]))
