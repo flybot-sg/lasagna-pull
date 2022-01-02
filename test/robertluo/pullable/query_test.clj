@@ -61,12 +61,12 @@
     [{:a 1} {:a 2 :b 3} {}]))
 
 (deftest mk-named-var-query
-  (let [run-bind (fn [sym-table status]
+  (let [bindings (fn [sym-table status]
                    (let [t-sym-table (transient sym-table)
                          a-status (atom status)]
                      [(sut/run-query ((sut/mk-named-var-query t-sym-table a-status 'a) (sut/fn-query :a)) {:a 1 :b 2})
                       (persistent! t-sym-table)]))]
-    (are [sym-table status exp] (= exp (run-bind sym-table status))
+    (are [sym-table status exp] (= exp (bindings sym-table status))
       {}     :fresh    [{:a 1} {'a 1}]
       ;;variable bound, and next query confirmed it
       {'a 1} :bound    [{:a 1} {'a 1}]
@@ -75,3 +75,8 @@
       ;;variable different from bounded value
       {'a 2} :bound    [nil {}]
       )))
+
+(deftest run-bind
+  (are [data exp] (= exp (sut/run-bind #((% 'a) (sut/fn-query :a)) data))
+    {:a 1} [{:a 1} {'a 1}]
+    {}     [{} {'a nil}]))

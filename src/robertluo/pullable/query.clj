@@ -129,16 +129,16 @@
            :fresh
            (do
              (assoc! t-sym-table sym v)
-             (reset! status :bound)
-             #((or % map-acceptor) k v))
+             (reset! status :bound))
 
            :bound
-           (let [old-v (get @t-sym-table sym ::not-found)]
+           (let [old-v (get t-sym-table sym ::not-found)]
              (when (not= v old-v)
                (dissoc! t-sym-table sym)
-               (reset! status :invalid))
-             #((or % map-acceptor) k v))
-           #((or % map-acceptor) nil v)))))))
+               (reset! status :invalid)))
+           
+           nil)
+         #((or % map-acceptor) (when (not= @status :invalid) k) v))))))
 
 (comment
   (let [a-sym-table (transient {})]
@@ -149,11 +149,17 @@
 (defn named-var-factory
   []
   (let [t-sym-table (transient {})
+        ;;cache for created named variable factory
         a-cx-named  (atom {})]
     [#(persistent! t-sym-table)
      (fn [sym]
        (or (get @a-cx-named sym)
            (mk-named-var-query t-sym-table sym)))]))
+
+(defn run-bind
+  [f-query data]
+  (let [[f-sym-table f-named-var] (named-var-factory)]
+    [(run-query (f-query f-named-var) data) (f-sym-table)]))
 
 ;;== pattern
 
@@ -177,7 +183,7 @@
               (fn-query k k (->query f-name-var v))
 
               :else
-              (scalar (fn-query k) v)))
+              (filter-query (fn-query k) v)))
           (vector-query))
 
      (vector? x)
@@ -192,14 +198,3 @@
 
      :else
      (throw (ex-info (str "Not known pattern: " x) {:x x})))))
-
-(defn run-bind
-  [pattern data]
-  (let [[symbols named-var] (named-var-factory)]
-    [(run-query (->query named-var pattern) data) (symbols)]))
-
-
-(comment
-  (run-bind '{:a ? :b 2 :c {:d ?d}} {:a 1 :b 2 :c {:d 4}})
-  (run-bind '[{:a ?} ?x] [{:a 1} {:b 1}])
-  (run-bind '[{:b ?b}] [{:a 1, :b 2, :c [{:d 3, :e 4}]} {:a 5, :b 6} {:c [{:e 7, :f 8}]}]))
