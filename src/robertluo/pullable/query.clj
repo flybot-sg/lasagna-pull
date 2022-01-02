@@ -110,23 +110,12 @@
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
   ([q]
    (fn [data]
-     (let [v (map #((q %) val-acceptor) data)
+     (let [v (map #((q %) nil) data)
            k (if (seq v) (first v) ::should-never-be-seen)]
        #((or % val-acceptor) k v)))))
 
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
-
-(defn scalar
-  "Scalar query will not appear in query result"
-  [q pred]
-  (fn [data]
-    (let [v ((q data) val-acceptor)]
-      #((or % (partial accept conj {})) (pred v) v))))
-
-(comment
-  (run-query (scalar (fn-query :a) #(= % 3)) {:a 2})
-  )
 
 (defn mk-named-var-query
   [t-sym-table sym]

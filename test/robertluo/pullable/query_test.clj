@@ -51,3 +51,11 @@
         {:a 1 :b 2}
         {}
         ))))
+
+(deftest seq-query
+  (are [q data exp] (= exp (sut/run-query (sut/seq-query q) data))
+    (sut/fn-query :a) [{:a 1} {:a 2 :b 3} {}] [{:a 1} {:a 2} {}]
+
+    (sut/vector-query [(sut/fn-query :a)(sut/fn-query :b)]) 
+    [{:a 1} {:a 2 :b 3} {:c 3}]
+    [{:a 1} {:a 2 :b 3} {}]))
