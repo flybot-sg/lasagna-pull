@@ -44,6 +44,7 @@
 
 (comment
   (sconj {} :a 1)
+  (accept conj! (transient []) :a 1)
   )
 
 (def map-acceptor
@@ -64,10 +65,24 @@
        (let [v (f data)]
          (when (not (nil? v))
            (let [child-q (or child (term-query v))]
-             ((child-q v) map-acceptor))))))))
+             ((child-q v) nil))))))))
 
 (comment
   (run-query (fn-query :a) {:a 3})
+  )
+
+(defn filter-query
+  "returns a filter query which will not appears in result data, but will
+   void other query if in a vector query, `pred` is the filter condition"
+  [q pred]
+  (fn [data]
+    #((or % map-acceptor)
+      (let [[k v] ((q data) vector)]
+        (when (pred v) k))
+      nil)))
+
+(comment
+  (run-query (filter-query (fn-query :a) #(= % 3)) {:a 2})
   )
 
 ;; A vector query is a query collection as `queries`
@@ -77,9 +92,13 @@
   [queries]
   (fn [data]
     (let [collector (transient [])
-          v (->> queries
-                 (reduce (fn [_ q] ((q data) (partial accept conj! collector))) collector)
-                 (persistent!))]
+          v (some->> queries
+                     (reduce (fn [acc q] ((q data)
+                                          (comp
+                                           #(if (nil? %) (reduced nil)  %)
+                                           (partial accept conj! acc))))
+                             collector)
+                     (persistent!))]
       #((or % val-acceptor) (map first v) (into {} v)))))
 
 (comment
