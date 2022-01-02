@@ -118,25 +118,27 @@
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
 (defn mk-named-var-query
-  [t-sym-table sym]
-  (with-local-vars [status :fresh]
-    (fn [q]
-      (fn [data]
-        (let [[k v] ((q data) (fn [k v] [k v]))]
-          (case @status
-            :fresh
-            (do
-              (assoc! t-sym-table sym v)
-              (var-set status :bound)
-              #((or % map-acceptor) k v))
+  "returns a factory function which take a query `q` as its argument."
+  ([t-sym-table sym]
+   (mk-named-var-query t-sym-table (atom :fresh) sym))
+  ([t-sym-table status sym]
+   (fn [q]
+     (fn [data]
+       (let [[k v] ((q data) (fn [k v] [k v]))]
+         (case @status
+           :fresh
+           (do
+             (assoc! t-sym-table sym v)
+             (reset! status :bound)
+             #((or % map-acceptor) k v))
 
-            :bound
-            (let [old-v (get @t-sym-table sym ::not-found)]
-              (when (not= v old-v)
-                (dissoc! t-sym-table sym)
-                (var-set status :invalid))
-              #((or % map-acceptor) k v))
-            #((or % map-acceptor) nil v)))))))
+           :bound
+           (let [old-v (get @t-sym-table sym ::not-found)]
+             (when (not= v old-v)
+               (dissoc! t-sym-table sym)
+               (reset! status :invalid))
+             #((or % map-acceptor) k v))
+           #((or % map-acceptor) nil v)))))))
 
 (comment
   (let [a-sym-table (transient {})]
