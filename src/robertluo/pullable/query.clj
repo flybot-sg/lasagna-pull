@@ -142,6 +142,7 @@
      (persistent! a-sym-table)]))
 
 (defn named-var-factory
+  "returns a function takes a symbol as the argument, returns a named-var-query"
   []
   (let [t-sym-table (transient {})
         ;;cache for created named variable factory
@@ -152,6 +153,10 @@
            (mk-named-var-query t-sym-table sym)))]))
 
 (defn run-bind
+  "`f-query` takes a function (returned by `named-var-factory`) as argument,
+  returns a query, then run it on `data`, finally returns a vector:
+    - query result
+    - named variable binding map"
   [f-query data]
   (let [[f-sym-table f-named-var] (named-var-factory)]
     [(run-query (f-query f-named-var) data) (f-sym-table)]))
@@ -159,10 +164,14 @@
 ;;== pattern
 
 (defn lvar?
+  "predict if `x` is a logical variable, i.e, starts with `?` and has a name,
+     - ?a is a logic variable
+     - ? is not"
   [x]
   (and (symbol? x) (re-matches #"\?.+" (name x))))
 
 (defn kv->query
+  "make a query from `k`, `v` and `f` to actually create the query"
   [f k v]
   (f
    (cond
@@ -175,6 +184,8 @@
 (import '[clojure.lang IMapEntry])
 
 (defn ->query
+  "walk through expression `x`, apply `f`(query constructor) to the parts
+   specified a query, returns it."
   [f x]
   (let [f (comp #(vary-meta % assoc ::query? true) f)]
     (postwalk
@@ -188,23 +199,37 @@
 
 (comment
   (->query identity '{:a ? :b ?})
-  (->query identity '{:a ?a})
-  (->query identity '[{:a ?}])
-  (->query identity '{:a {:b [{:c ?c}]}})
   )
 
 (defn pattern->query
-  [f-named-var x]
-  (let [ctor-map {:fn fn-query
-                  :vec vector-query
-                  :seq seq-query
-                  :filter (fn [q v] (filter-query q #(= % v)))
-                  :named f-named-var}
-        [x-name & args] x]
-    (if-let [f (get ctor-map x-name)]
-      (apply f args)
-      (throw (ex-info (str "Do not understand: " x-name) {:op x-name :args args})))))
+  "take a function `f-named-var` to create named variable query, and `x`
+   is the expression to specify whole query,
+   returns a function takes named variable constructor"
+  [f-named-var]
+  (fn [x]
+    (let [ctor-map {:fn     fn-query
+                    :vec    vector-query
+                    :seq    seq-query
+                    :filter (fn [q v] (filter-query q #(= % v)))
+                    :named  f-named-var}
+          [x-name & args] x]
+      (if-let [f (get ctor-map x-name)]
+        (apply f args)
+        (throw (ex-info (str "Do not understand: " x-name) {:op x-name :args args}))))))
+
+(defn compile-x
+  "compile query pattern `x` returned a compiled query function"
+  [x]
+  (fn [f-named-var]
+    (->query (pattern->query f-named-var) x)))
+
+(defn run
+  "run query pattern `x` on `data`, returns vector of matched data and named
+   variable binding map."
+  [x data]
+  (run-bind (if (fn? x) x (compile-x x)) data))
 
 (comment
-  (run-query (map->query (partial pattern->query identity) '{:a ?}) {:a 1})
+  (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
+  (run '{:a ?} {:a 1})
   )

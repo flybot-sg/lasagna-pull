@@ -90,3 +90,36 @@
     '{:b 2}               [:vec [[:filter [:fn :b] 2]]]
     '[{:a [{:b ?}]}]      [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
     ))
+
+(deftest #^:integrated run
+  (are [data x exp] (= exp (sut/run x data))
+    {:a 1}           '{:a ?}        [{:a 1} {}]
+    {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} {}]
+
+    ;;filtered
+    ;;{:a 1 :b 2}      '{:a ? :b 2}   [{} {}]
+
+    ;;seq query
+    [{:a 1} {:a 2 :b 2} {}]
+    '[{:a ?}]
+    [[{:a 1} {:a 2} {}] {}]
+
+    ;;nested map query
+    {:a {:b 1 :c 2}}
+    '{:a {:b ?}}
+    [{:a {:b 1}} {}]
+
+    {:a {:b [{:c 1 :d 5} {:c 2}]}}
+    '{:a {:b [{:c ?}]}}
+    [{:a {:b [{:c 1} {:c 2}]}} {}]
+
+    ;;named variable
+    {:a 1 :b 2}
+    '{:a ?a}
+    [{:a 1} {'?a 1}]
+
+    ;;named join
+    {:a 1 :b 1}
+    '{:a ?a :b ?a}
+    [{:a 1 :b 1} {'?a 1}]
+    ))
