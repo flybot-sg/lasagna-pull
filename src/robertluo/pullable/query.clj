@@ -175,10 +175,17 @@
   [f k v]
   (f
    (cond
-     (= v '?)    [:fn k]
-     (lvar? v)   [:named (f [:fn k]) (symbol v)]
-     (-> v meta ::query?) [:fn k k v]
-     :else       [:filter (f [:fn k]) v])))
+     (= v '?)    
+     [:fn k]
+
+     (lvar? v)
+     [:named (f [:fn k]) (symbol v)]
+  
+     (-> v meta ::query?)
+     [:fn k k v]
+
+     :else
+     [:filter (f [:fn k]) v])))
 
 (require '[clojure.walk :refer [postwalk]])
 (import '[clojure.lang IMapEntry])
@@ -211,7 +218,7 @@
                     :vec    vector-query
                     :seq    seq-query
                     :filter (fn [q v] (filter-query q #(= % v)))
-                    :named  f-named-var}
+                    :named  (fn [q sym] ((f-named-var sym) q))}
           [x-name & args] x]
       (if-let [f (get ctor-map x-name)]
         (apply f args)
@@ -231,5 +238,6 @@
 
 (comment
   (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
-  (run '{:a ?} {:a 1})
+  (run '{:a ? :b 2} {:a 1 :b 1})
+  (run '{:a ?a} {:a 1 :b 2})
   )
