@@ -80,3 +80,13 @@
   (are [data exp] (= exp (sut/run-bind #((% 'a) (sut/fn-query :a)) data))
     {:a 1} [{:a 1} {'a 1}]
     {}     [{} {'a nil}]))
+
+(deftest ->query
+  (are [m exp] (= exp (sut/->query identity m))
+    '{:a ?}               [:vec [[:fn :a]]]
+    '{:a ? :b ?}          [:vec [[:fn :a] [:fn :b]]]
+    '{:a ?a}              [:vec [[:named [:fn :a] '?a]]]
+    '{:a {:b ?}}          [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
+    '{:b 2}               [:vec [[:filter [:fn :b] 2]]]
+    '[{:a [{:b ?}]}]      [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
+    ))
