@@ -88,7 +88,7 @@
     '{:a ?a}              [:vec [[:named [:fn :a] '?a]]]
     '{:a {:b ?}}          [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
     '{:b 2}               [:vec [[:filter [:fn :b] 2]]]
-    '[{:a ?} ?x]          [:named [:seq [:fn n]] '?x]
+    '[{:a ?} ?x]          [:named [:seq [:vec [[:fn :a]]]] '?x]
     '[{:a [{:b ?}]}]      [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
     ))
 

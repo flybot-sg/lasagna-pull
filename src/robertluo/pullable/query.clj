@@ -134,7 +134,10 @@
                (reset! status :invalid)))
 
            nil)
-         #((or % map-acceptor) (when (not= @status :invalid) k) v))))))
+         #((or % (cond
+                   (sequential? v) val-acceptor
+                   :else    map-acceptor))
+           (when (not= @status :invalid) k) v))))))
 
 (comment
   (let [a-sym-table (transient {})]

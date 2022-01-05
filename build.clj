@@ -3,7 +3,7 @@
             [org.corfield.build :as cb]))
 
 (def lib 'robertluo/pullable)
-(def version (format "0.2.%s" (b/git-count-revs nil)))
+(def version (format "0.3.%s" (b/git-count-revs nil)))
 
 (defn ci
   [opts]
