@@ -80,7 +80,7 @@
       nil)))
 
 (comment
-  (run-query (filter-query (fn-query :a) #(= % 3)) {:a 2}))
+  (run-query (filter-query (fn-query :a) odd?) {:a 2}))
 
 ;; A vector query is a query collection as `queries`
 (defn vector-query
@@ -198,10 +198,22 @@
     (postwalk
      (fn [x]
        (cond
-         (map? x)                (->> (map #(apply kv->query f %) x) (vector :vec) f)
-         (instance? IMapEntry x) x
-         (vector? x)             (f [:seq (first x)])
-         :else                   x))
+         (map? x)                
+         (->> (map #(apply kv->query f %) x) (vector :vec) f)
+
+         ;IMapEntry is a vector, we must shortcut it
+         (instance? IMapEntry x) 
+         x
+
+         (vector? x)             
+         (let [[q named] x
+               rslt (f [:seq q])]
+           (if (lvar? named)
+             (f [:named rslt (symbol named)])
+             rslt))
+
+         :else
+         x))
      x)))
 
 (comment
@@ -217,7 +229,7 @@
     (let [ctor-map {:fn     fn-query
                     :vec    vector-query
                     :seq    seq-query
-                    :filter (fn [q v] (filter-query q #(= % v)))
+                    :filter (fn [q v] (filter-query q (if (fn? v) v #(= % v))))
                     :named  (fn [q sym] ((f-named-var sym) q))}
           [x-name & args] x]
       (if-let [f (get ctor-map x-name)]

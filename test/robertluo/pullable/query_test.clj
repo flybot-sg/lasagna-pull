@@ -88,6 +88,7 @@
     '{:a ?a}              [:vec [[:named [:fn :a] '?a]]]
     '{:a {:b ?}}          [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
     '{:b 2}               [:vec [[:filter [:fn :b] 2]]]
+    '[{:a ?} ?x]          [:named [:seq [:fn n]] '?x]
     '[{:a [{:b ?}]}]      [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
     ))
 
@@ -125,4 +126,10 @@
     {:a 1 :b 1}
     '{:a ?a :b ?a}
     [{:a 1 :b 1} {'?a 1}]
+
+    ;;capture a sequence
+    [{:a 1 :b 2} {:a 3 :b 4 :c 5} {:b 6}]
+    '[{:a ? :b ?} ?g]
+    [[{:a 1 :b 2} {:a 3 :b 4} {:b 6}]
+     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]
     ))
