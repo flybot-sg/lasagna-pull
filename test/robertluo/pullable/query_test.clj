@@ -99,6 +99,9 @@
     ;;filtered
     {:a 1 :b 2}      '{:a ? :b 1}   [{} {}]
 
+    ;;filter with a function
+    {:a 8 :b 2}      {:a '? :b even?} [{:a 8} {}]
+
     ;;seq query
     [{:a 1} {:a 2 :b 2} {}]
     '[{:a ?}]
