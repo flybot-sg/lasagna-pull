@@ -250,6 +250,7 @@
 
 (comment
   (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
+  (run '{:a ? :b ?} {:a 3 :b 5})
   (run '{:a ? :b 2} {:a 1 :b 1})
   (run '{:a ?a} {:a 1 :b 2})
   )
