@@ -1,20 +1,24 @@
 (ns robertluo.pullable.query-test
   (:require [robertluo.pullable.query :as sut]
-            [clojure.test :refer [deftest is testing are]]))
+            [clojure.test :refer [deftest is testing are]])
+  (:import [clojure.lang ExceptionInfo]))
 
 (deftest fn-query
-  (are [args data exp] (= exp (sut/run-query (apply sut/fn-query args) data))
-    [:a] {:a 1 :b 2}   {:a 1}
-    [:a] {:b 2}        {}
-    ;;joined query
-    [:a :a (sut/fn-query :b)]
-    {:a {:b 2 :c 3}}   {:a {:b 2}}
+  (testing "fn-query select key from a value"
+    (are [args data exp] (= exp (sut/run-query (apply sut/fn-query args) data))
+      [:a] {:a 1 :b 2}   {:a 1}
+      [:a] {:b 2}        {}
+      ;;joined query
+      [:a :a (sut/fn-query :b)]
+      {:a {:b 2 :c 3}}   {:a {:b 2}}
 
-    [:a :a (sut/fn-query :b)]
-    {:a {:c 3}}        {:a {}}
+      [:a :a (sut/fn-query :b)]
+      {:a {:c 3}}        {:a {}}
 
-    [:a :a (sut/fn-query :b)]
-    {:b 1 :c 2}        {}))
+      [:a :a (sut/fn-query :b)]
+      {:b 1 :c 2}        {}))
+  (testing "fn-query throws data error if data is not a map (associative)"
+    (is (thrown? ExceptionInfo (sut/run-query (sut/fn-query :a) 3)))))
 
 (deftest filter-query
   (are [data exp] (= exp (sut/run-query (sut/filter-query (sut/fn-query :a) #(= % 3)) data))
@@ -53,12 +57,15 @@
         ))))
 
 (deftest seq-query
-  (are [q data exp] (= exp (sut/run-query (sut/seq-query q) data))
-    (sut/fn-query :a) [{:a 1} {:a 2 :b 3} {}] [{:a 1} {:a 2} {}]
+  (testing "seq query queries by apply q on every item"
+    (are [q data exp] (= exp (sut/run-query (sut/seq-query q) data))
+      (sut/fn-query :a) [{:a 1} {:a 2 :b 3} {}] [{:a 1} {:a 2} {}]
 
-    (sut/vector-query [(sut/fn-query :a)(sut/fn-query :b)]) 
-    [{:a 1} {:a 2 :b 3} {:c 3}]
-    [{:a 1} {:a 2 :b 3} {}]))
+      (sut/vector-query [(sut/fn-query :a) (sut/fn-query :b)])
+      [{:a 1} {:a 2 :b 3} {:c 3}]
+      [{:a 1} {:a 2 :b 3} {}]))
+  (testing "seq query throws data error on non-sequential data"
+    (is (thrown? ExceptionInfo (sut/run-query (sut/seq-query (sut/fn-query :a)) {:a 1})))))
 
 (deftest mk-named-var-query
   (let [bindings (fn [sym-table status]

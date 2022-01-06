@@ -50,6 +50,11 @@
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
+(defn data-error
+  "throw an exception specify data error"
+  [reason k data]
+  (throw (ex-info reason {:k k :data data})))
+
 (defn fn-query
   "returns a simple query has key as `k`, `f` to return a value from a map,
    and `child` query to execute if matches."
@@ -59,10 +64,12 @@
    (fn-query k f nil))
   ([k f child]
    (fn acc [data]
+     (when-not (associative? data)
+       (data-error "associative(map) expected" k data))
      #((or % map-acceptor)
        k
        (let [v (f data)]
-         (when (not (nil? v))
+         (when-not (nil? v)
            (let [child-q (or child (term-query v))]
              ((child-q v) nil))))))))
 
@@ -90,10 +97,11 @@
   (fn [data]
     (let [collector (transient [])
           v (some->> queries
-                     (reduce (fn [acc q] ((q data)
-                                          (comp
-                                           #(if (nil? %) (reduced nil)  %)
-                                           (partial accept conj! acc))))
+                     (reduce (fn [acc q]
+                               ((q data)
+                                (comp
+                                 #(if (nil? %) (reduced nil)  %)
+                                 (partial accept conj! acc))))
                              collector)
                      (persistent!))]
       #((or % val-acceptor) (map first v) (into {} v)))))
@@ -106,6 +114,8 @@
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
   ([q]
    (fn [data]
+     (when-not (sequential? data)
+       (data-error "sequence expected" nil data))
      (let [v (map #((q %) nil) data)
            k (if (seq v) (first v) ::should-never-be-seen)]
        #((or % val-acceptor) k v)))))
@@ -165,6 +175,10 @@
     [(run-query (f-query f-named-var) data) (f-sym-table)]))
 
 ;;== pattern
+
+(defn pattern-error
+  [reason pattern]
+  (throw (ex-info reason {:pattern pattern})))
 
 (defn lvar?
   "predict if `x` is a logical variable, i.e, starts with `?` and has a name,
@@ -237,7 +251,7 @@
           [x-name & args] x]
       (if-let [f (get ctor-map x-name)]
         (apply f args)
-        (throw (ex-info (str "Do not understand: " x-name) {:op x-name :args args}))))))
+        (pattern-error "not understandable pattern" x)))))
 
 (defn compile-x
   "compile query pattern `x` returned a compiled query function"
