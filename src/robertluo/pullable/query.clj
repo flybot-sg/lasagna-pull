@@ -186,8 +186,13 @@
 
 ;; Post processors apply after a query, abbreciate to `pp`
 (defmulti apply-post
-  "create a post processor by ::pp-type"
+  "create a post processor by ::pp-type, returns a function takes
+   k-v pair, returns the same shape of data"
   (fn [pp-type _] pp-type))
+
+(defmethod apply-post :default
+  [_ _]
+  identity)
 
 (defn decorate-query
   [q pp-pairs]
@@ -230,7 +235,11 @@
 
      (sequential? v)
      (let [[x & opts] v]
-       [:deco (kv->query f k x) (partition 2 (rest v))])
+       (when-not (or (= x '?) (lvar? x))
+         (pattern-error "first item of optional list must be variable" v))
+       (when-not (even? (count opts))
+         (pattern-error "options count must be even"))
+       [:deco (kv->query f k x) (partition 2 opts)])
 
      :else
      [:filter (f [:fn k]) v])))
