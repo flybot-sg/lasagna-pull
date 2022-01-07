@@ -113,7 +113,7 @@
 
     ;;guard clause
     {:a 2}           {:a (list '? :when even?)}  [{:a 2} {}]
-    {:a 1}           {:a (list '? :when even?)}  [{} {}]
+    {:a 1}           {:a (list '? :when even? :not-found 0)}  [{:a 0} {}]
 
     ;;seq query
     [{:a 1} {:a 2 :b 2} {}]

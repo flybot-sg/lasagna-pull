@@ -206,6 +206,11 @@
   (fn [[k v]]
     [k (when (pred v) v)]))
 
+(defmethod apply-post :not-found
+  [_ val]
+  (fn [[k v]]
+    [k (or v val)]))
+
 ;;== pattern
 
 (defn pattern-error
