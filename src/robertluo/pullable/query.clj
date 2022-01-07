@@ -58,13 +58,6 @@
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
-(defn adaptive-acceptor
-  "adaptive acceptor according to v"
-  [v]
-  (cond
-    (sequential? v) val-acceptor
-    :else    map-acceptor))
-
 (defn data-error
   "throw an exception specify data error"
   [reason k data]
