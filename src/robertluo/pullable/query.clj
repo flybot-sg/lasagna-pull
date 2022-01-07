@@ -16,8 +16,8 @@
 (defrecord PullQuery [id acceptor val-getter]
   clojure.lang.IFn
   (invoke
-   [_ accept]
-   ((or accept acceptor) id (val-getter))))
+    [_ accept]
+    ((or accept acceptor) id (val-getter))))
 
 (def q ->PullQuery)
 
@@ -81,7 +81,7 @@
    (fn acc [data]
      (when-not (associative? data)
        (data-error "associative(map) expected" k data))
-     (q k map-acceptor 
+     (q k map-acceptor
         #(let [v (f data)]
            (when-not (nil? v)
              (let [child-q (or child (term-query v))]
@@ -130,41 +130,39 @@
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
-  ([q]
+  ([qr]
    (fn [data]
      (when-not (sequential? data)
        (data-error "sequence expected" nil data))
-     (let [v (map #((q %) nil) data)
-           k (if (seq v) (first v) ::should-never-be-seen)]
-       #((or % val-acceptor) k v)))))
+     (let [v (map #((qr %) nil) data)]
+       (q (:k qr) val-acceptor (fn [] v))))))
 
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
-;;TODO could be rewritten by post-process-query
 (defn mk-named-var-query
   "returns a factory function which take a query `q` as its argument."
   ([t-sym-table sym]
    (mk-named-var-query t-sym-table (atom :fresh) sym))
   ([t-sym-table status sym]
-   (fn [q]
-     (fn [data]
-       (let [[k v] ((q data) (fn [k v] [k v]))]
-         (case @status
-           :fresh
-           (do
-             (assoc! t-sym-table sym v)
-             (reset! status :bound))
+   (fn [qr]
+     (post-process-query
+      qr
+      (fn [[k v]]
+        (case @status
+          :fresh
+          (do
+            (assoc! t-sym-table sym v)
+            (reset! status :bound))
 
-           :bound
-           (let [old-v (get t-sym-table sym ::not-found)]
-             (when (not= v old-v)
-               (dissoc! t-sym-table sym)
-               (reset! status :invalid)))
+          :bound
+          (let [old-v (get t-sym-table sym ::not-found)]
+            (when (not= v old-v)
+              (dissoc! t-sym-table sym)
+              (reset! status :invalid)))
 
-           nil)
-         #((or % (adaptive-acceptor v))
-           (when (not= @status :invalid) k) v))))))
+          nil)
+        [(when (not= @status :invalid) k) v])))))
 
 (comment
   (let [a-sym-table (transient {})]
@@ -194,13 +192,13 @@
 ;;== post processors
 
 ;; Post processors apply after a query, abbreciate to `pp`
-(defmulti apply-post 
+(defmulti apply-post
   "create a post processor by ::pp-type"
   (fn [pp-type _] pp-type))
 
 (defn decorate-query
   [q pp-pairs]
-  (reduce 
+  (reduce
    (fn [acc [pp-type pp-value]]
      (post-process-query acc (apply-post pp-type pp-value)))
    q pp-pairs))
@@ -277,7 +275,7 @@
 
 (comment
   (->query identity '{:a ? :b ?}))
-  
+
 
 (defn pattern->query
   "take a function `f-named-var` to create named variable query, and `x`
@@ -313,4 +311,3 @@
   (run '{:a ? :b ?} {:a 3 :b 5})
   (run '{:a ? :b 2} {:a 1 :b 1})
   (run '{:a ?a} {:a 1 :b 2}))
-  
