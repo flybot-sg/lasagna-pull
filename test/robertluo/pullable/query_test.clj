@@ -90,17 +90,18 @@
 
 (deftest ->query
   (are [m exp] (= exp (sut/->query identity m))
-    '{:a ?}               [:vec [[:fn :a]]]
-    '{:a ? :b ?}          [:vec [[:fn :a] [:fn :b]]]
-    '{:a ?a}              [:vec [[:named [:fn :a] '?a]]]
-    '{:a {:b ?}}          [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
-    '{:b 2}               [:vec [[:filter [:fn :b] 2]]]
-    '[{:a ?} ?x]          [:named [:seq [:vec [[:fn :a]]]] '?x]
-    '[{:a [{:b ?}]}]      [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
+    '{:a ?}                 [:vec [[:fn :a]]]
+    '{:a ? :b ?}            [:vec [[:fn :a] [:fn :b]]]
+    '{:a ?a}                [:vec [[:named [:fn :a] '?a]]]
+    '{:a {:b ?}}            [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
+    '{:b 2}                 [:vec [[:filter [:fn :b] 2]]]
+    '[{:a ?} ?x]            [:named [:seq [:vec [[:fn :a]]]] '?x]
+    '[{:a [{:b ?}]}]        [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
     ))
 
 (deftest #^:integrated run
   (are [data x exp] (= exp (sut/run x data))
+    ;;basic patterns
     {:a 1}           '{:a ?}        [{:a 1} {}]
     {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} {}]
 
@@ -109,6 +110,10 @@
 
     ;;filter with a function
     {:a 8 :b 2}      {:a '? :b even?} [{:a 8} {}]
+
+    ;;guard clause
+    {:a 2}           {:a (list '? :when even?)}  [{:a 2} {}]
+    {:a 1}           {:a (list '? :when even?)}  [{} {}]
 
     ;;seq query
     [{:a 1} {:a 2 :b 2} {}]
@@ -138,5 +143,4 @@
     [{:a 1 :b 2} {:a 3 :b 4 :c 5} {:b 6}]
     '[{:a ? :b ?} ?g]
     [[{:a 1 :b 2} {:a 3 :b 4} {:b 6}]
-     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]
-    ))
+     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]))

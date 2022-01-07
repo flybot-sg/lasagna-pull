@@ -13,6 +13,14 @@
   [_ v]
   v)
 
+(defrecord PullQuery [id acceptor val-getter]
+  clojure.lang.IFn
+  (invoke
+   [_ accept]
+   ((or accept acceptor) id (val-getter))))
+
+(def q ->PullQuery)
+
 (defn run-query
   "run a query `q` on `data`, returns the query result function.
    
@@ -50,6 +58,13 @@
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
+(defn adaptive-acceptor
+  "adaptive acceptor according to v"
+  [v]
+  (cond
+    (sequential? v) val-acceptor
+    :else    map-acceptor))
+
 (defn data-error
   "throw an exception specify data error"
   [reason k data]
@@ -66,28 +81,14 @@
    (fn acc [data]
      (when-not (associative? data)
        (data-error "associative(map) expected" k data))
-     #((or % map-acceptor)
-       k
-       (let [v (f data)]
-         (when-not (nil? v)
-           (let [child-q (or child (term-query v))]
-             ((child-q v) nil))))))))
+     (q k map-acceptor 
+        #(let [v (f data)]
+           (when-not (nil? v)
+             (let [child-q (or child (term-query v))]
+               ((child-q v) nil))))))))
 
 (comment
   (run-query (fn-query :a) {:a 3}))
-
-(defn filter-query
-  "returns a filter query which will not appears in result data, but will
-   void other query if in a vector query, `pred` is the filter condition"
-  [q pred]
-  (fn [data]
-    #((or % map-acceptor)
-      (let [[k v] ((q data) vector)]
-        (when (pred v) k))
-      nil)))
-
-(comment
-  (run-query (filter-query (fn-query :a) odd?) {:a 2}))
 
 ;; A vector query is a query collection as `queries`
 (defn vector-query
@@ -104,10 +105,27 @@
                                  (partial accept conj! acc))))
                              collector)
                      (persistent!))]
-      #((or % val-acceptor) (map first v) (into {} v)))))
+      (q (map first v) val-acceptor #(into {} v)))))
 
 (comment
   (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
+
+(defn post-process-query
+  "A query decorator post process its result"
+  [child f-post-process]
+  (fn [data]
+    (let [child-q (child data)
+          [k v] (some-> (child-q vector) (f-post-process))]
+      (q k (:acceptor child-q) (fn [] v)))))
+
+(defn filter-query
+  "returns a filter query which will not appears in result data, but will
+   void other query if in a vector query, `pred` is the filter condition"
+  [q pred]
+  (post-process-query q (fn [[k v]] [(when (pred v) k) nil])))
+
+(comment
+  (run-query (filter-query (fn-query :a) odd?) {:a 2}))
 
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
@@ -123,6 +141,7 @@
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
+;;TODO could be rewritten by post-process-query
 (defn mk-named-var-query
   "returns a factory function which take a query `q` as its argument."
   ([t-sym-table sym]
@@ -144,9 +163,7 @@
                (reset! status :invalid)))
 
            nil)
-         #((or % (cond
-                   (sequential? v) val-acceptor
-                   :else    map-acceptor))
+         #((or % (adaptive-acceptor v))
            (when (not= @status :invalid) k) v))))))
 
 (comment
@@ -174,6 +191,25 @@
   (let [[f-sym-table f-named-var] (named-var-factory)]
     [(run-query (f-query f-named-var) data) (f-sym-table)]))
 
+;;== post processors
+
+;; Post processors apply after a query, abbreciate to `pp`
+(defmulti apply-post 
+  "create a post processor by ::pp-type"
+  (fn [pp-type _] pp-type))
+
+(defn decorate-query
+  [q pp-pairs]
+  (reduce 
+   (fn [acc [pp-type pp-value]]
+     (post-process-query acc (apply-post pp-type pp-value)))
+   q pp-pairs))
+
+(defmethod apply-post :when
+  [_ pred]
+  (fn [[k v]]
+    [k (when (pred v) v)]))
+
 ;;== pattern
 
 (defn pattern-error
@@ -192,17 +228,23 @@
   [f k v]
   (f
    (cond
-     (= v '?)    
+     (= v '?)
      [:fn k]
 
      (lvar? v)
      [:named (f [:fn k]) (symbol v)]
-  
+
      (-> v meta ::query?)
      [:fn k k v]
 
+     (sequential? v)
+     (let [[x & opts] v]
+       [:deco (kv->query f k x) (partition 2 (rest v))])
+
      :else
      [:filter (f [:fn k]) v])))
+
+(kv->query identity :a `(~'? :when ~even?))
 
 (require '[clojure.walk :refer [postwalk]])
 (import '[clojure.lang IMapEntry])
@@ -215,14 +257,14 @@
     (postwalk
      (fn [x]
        (cond
-         (map? x)                
+         (map? x)
          (->> (map #(apply kv->query f %) x) (vector :vec) f)
 
          ;IMapEntry is a vector, we must shortcut it
-         (instance? IMapEntry x) 
+         (instance? IMapEntry x)
          x
 
-         (vector? x)             
+         (vector? x)
          (let [[q named] x
                rslt (f [:seq q])]
            (if (lvar? named)
@@ -234,8 +276,8 @@
      x)))
 
 (comment
-  (->query identity '{:a ? :b ?})
-  )
+  (->query identity '{:a ? :b ?}))
+  
 
 (defn pattern->query
   "take a function `f-named-var` to create named variable query, and `x`
@@ -246,6 +288,7 @@
     (let [ctor-map {:fn     fn-query
                     :vec    vector-query
                     :seq    seq-query
+                    :deco   (fn [q pp-pairs] (decorate-query q pp-pairs))
                     :filter (fn [q v] (filter-query q (if (fn? v) v #(= % v))))
                     :named  (fn [q sym] ((f-named-var sym) q))}
           [x-name & args] x]
@@ -269,5 +312,5 @@
   (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
   (run '{:a ? :b ?} {:a 3 :b 5})
   (run '{:a ? :b 2} {:a 1 :b 1})
-  (run '{:a ?a} {:a 1 :b 2})
-  )
+  (run '{:a ?a} {:a 1 :b 2}))
+  
