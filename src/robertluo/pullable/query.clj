@@ -249,8 +249,6 @@
      :else
      [:filter (f [:fn k]) v])))
 
-(kv->query identity :a `(~'? :when ~even?))
-
 (require '[clojure.walk :refer [postwalk]])
 (import '[clojure.lang IMapEntry])
 
