@@ -4,12 +4,23 @@
 
 ## Rational
 
-Data for an application can be big, most of them are maps or collection of maps, we always need a way to allow user to select derived data from a recursive data structure. 
+Organizing all data into a big data structure, makes it a single point of truth, is a good practice for clojure app. 
 
-Clojure has built-in function like `select-keys` can return same shape data from a big map, but it is too limited.
+ - Data organized by its domain nature, easy to navigate.
+ - No more duplicated data, prevents all kinds of out-of-sync problem.
+ - By checking this app data, program can be easier to reason about.
+
+If you use [fun-map](https://github.com/robertluo/fun-map), you can even put all your database and its operations into this big map, making this approach easier for real world, complicate data.
+
+Clojure has built-in function like `select-keys` can return same shape data from a map, but it is too limited.
 
 Inspired by [Datomic Pull API](https://docs.datomic.com/on-prem/pull.html) and [EQL](https://edn-query-language.org/eql/1.0.0/what-is-eql.html), this simple library provide you a simple and precise pattern allow you to pull data out in one call.
 
+The idea of a general purpose query language for native clojure data structure should have features like:
+
+ - Can be used locally or remotely, remotely using it as an app API is just a natural extension, it makes no sense that remote app can have some feature while code in same app can not.
+ - Can be expressed in pure clojure data structure.
+ - Follows the shape of app data, users can query by an example.
 ## Query pattern
 
 Generally, query patterns just have same structure of your data, where there is a map, you use map in place of it; where there is a sequence (vector, list, etc.) of maps, you use a vector in place.
