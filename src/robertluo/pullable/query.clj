@@ -108,7 +108,6 @@
   "A query decorator post process its result"
   [child f-post-process]
   (fn [data]
-    #dbg
     (let [child-q (child data)
           [k v] (some-> (child-q vector) (f-post-process))]
       (q k (:acceptor child-q) (fn [] v)))))
@@ -216,7 +215,6 @@
 (defmethod apply-post :with
   [_ args]
   (fn [[k v]]
-    #dbg
     (when-not (fn? v)
       (data-error ":with option need a function" k v))
     [k (apply v args)]))
@@ -328,7 +326,7 @@
     (let [ctor-map {:fn     fn-query
                     :vec    vector-query
                     :seq    seq-query
-                    :deco   (fn [q pp-pairs] #dbg (decorate-query q pp-pairs))
+                    :deco   (fn [q pp-pairs] (decorate-query q pp-pairs))
                     :filter (fn [q v] (filter-query q (if (fn? v) v #(= % v))))
                     :named  (fn [q sym] ((f-named-var sym) q))}
           [x-name & args] x]
