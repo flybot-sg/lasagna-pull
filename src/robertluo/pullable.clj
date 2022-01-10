@@ -1,41 +1,20 @@
 (ns robertluo.pullable
   "Pull from data structure by using pattern."
   (:require
-   [robertluo.pullable
-    [core :as core]
-    [pattern :as ptn]
-    option]))
+   [robertluo.pullable.query :as query]))
 
 (defn query
-  "Returns a query from `pattern` and `global-options` map. A query can be used to
-   pull from data structure later.
-
-  ### Pattern
-
-  A pattern is recursive data structure, consists of:
-
-   - Simple value pattern, just be used as a key of a lookup data structure, such as map keys, vector index, etc.
-   - Vector pattern, returns the combination of its elements.
-   - Join pattern, aka map, its keys are patterns, and will be ran first, then the values (also are patterns) will be run in the context of the key result data structure.
-   - List pattern, first element is a pattern, the rest are options, must be in pairs.
- "
+  "Returns a query from `pattern`. A query can be used to
+   pull from data structure later. "
   [pattern]
-  (ptn/as-query pattern))
+  (query/compile-x pattern))
 
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."
-  [data q]
-  (core/-transform q (empty data) data))
+  [q data]
+  (query/run q data))
 
-(defn pull
-  "Combined `query` and `run` in one step."
-  ([data ptn]
-   (run data (query ptn))))
-
-(def ^:const NONE
-  "A constant that means no value corresponding for the query"
-  ::core/none)
-
-(def ^:const IGNORE
-  "A constant that means ignore the query if not found"
-  ::core/ignore)
+(comment
+  (def q (query {:a '? :b '?}))
+  (run '{:a ? :b ?} {:a 3 :b 2})
+  )
