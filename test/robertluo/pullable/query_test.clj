@@ -95,6 +95,7 @@
     '{:a ?a}                [:vec [[:named [:fn :a] '?a]]]
     '{:a {:b ?}}            [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
     '{:b 2}                 [:vec [[:filter [:fn :b] 2]]]
+    '{:b (?b :not-found 3)} [:vec [[:named [:deco [:fn :b] [[:not-found 3]]] '?b]]]
     '[{:a ?} ?x]            [:named [:seq [:vec [[:fn :a]]]] '?x]
     '[{:a [{:b ?}]}]        [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
     ))
@@ -113,9 +114,14 @@
 
     ;;guard clause
     {:a 2}           {:a (list '? :when even?)}  [{:a 2} {}]
-    
+
     ;;guard with not-found
     {:a 1}           {:a (list '? :when even? :not-found 0)}  [{:a 0} {}]
+
+    ;;with option
+    {:a inc}
+    '{:a (?a :with [3])}
+    [{:a 4} {'?a 4}]
 
     ;;seq query
     [{:a 1} {:a 2 :b 2} {}]
@@ -145,5 +151,4 @@
     [{:a 1 :b 2} {:a 3 :b 4 :c 5} {:b 6}]
     '[{:a ? :b ?} ?g]
     [[{:a 1 :b 2} {:a 3 :b 4} {:b 6}]
-     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]
-    ))
+     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]))

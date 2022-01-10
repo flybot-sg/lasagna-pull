@@ -63,6 +63,7 @@
   [reason k data]
   (throw (ex-info reason {:k k :data data})))
 
+;;FIXME stack consuming
 (defn fn-query
   "returns a simple query has key as `k`, `f` to return a value from a map,
    and `child` query to execute if matches."
@@ -107,6 +108,7 @@
   "A query decorator post process its result"
   [child f-post-process]
   (fn [data]
+    #dbg
     (let [child-q (child data)
           [k v] (some-> (child-q vector) (f-post-process))]
       (q k (:acceptor child-q) (fn [] v)))))
@@ -128,7 +130,7 @@
      (when-not (sequential? data)
        (data-error "sequence expected" nil data))
      (let [v (map #((qr %) nil) data)]
-       (q (:k qr) val-acceptor (fn [] v))))))
+       (q (:id qr) val-acceptor (fn [] v))))))
 
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
@@ -211,6 +213,17 @@
   (fn [[k v]]
     [k (or v val)]))
 
+(defmethod apply-post :with
+  [_ args]
+  (fn [[k v]]
+    #dbg
+    (when-not (fn? v)
+      (data-error ":with option need a function" k v))
+    [k (apply v args)]))
+
+;;TODO pagination
+;;TODO batch option
+
 ;;== pattern
 
 (defn pattern-error
@@ -224,6 +237,10 @@
   [x]
   (and (symbol? x) (re-matches #"\?.+" (name x))))
 
+(defn query?
+  [x]
+  (some-> x meta ::query?))
+
 (defn kv->query
   "make a query from `k`, `v` and `f` to actually create the query"
   [f k v]
@@ -235,22 +252,37 @@
      (lvar? v)
      [:named (f [:fn k]) (symbol v)]
 
-     (-> v meta ::query?)
+     (query? v)
      [:fn k k v]
 
      (sequential? v)
      (let [[x & opts] v]
        (when-not (or (= x '?) (lvar? x))
-         (pattern-error "first item of optional list must be variable" v))
+         (pattern-error "first item of optional list must be a variable" v))
        (when-not (even? (count opts))
-         (pattern-error "options count must be even"))
-       [:deco (kv->query f k x) (partition 2 opts)])
+         (pattern-error "options count must be even" opts))
+       (if (lvar? x)
+         [:named (f [:deco (f [:fn k]) (partition 2 opts)]) (symbol x)]
+         [:deco (kv->query f k x) (partition 2 opts)]))
 
      :else
      [:filter (f [:fn k]) v])))
 
 (require '[clojure.walk :refer [postwalk]])
 (import '[clojure.lang IMapEntry])
+
+(comment
+  (postwalk
+   (fn [x]
+     (cond
+       (instance? IMapEntry x)
+       (let [[k v] x]
+         [(str k) v])
+       (map? x)
+       (vec (seq x))
+       :else x))
+   {:a 1 :b 2})
+  )
 
 (defn ->query
   "walk through expression `x`, apply `f`(query constructor) to the parts
@@ -260,19 +292,25 @@
     (postwalk
      (fn [x]
        (cond
-         (map? x)
-         (->> (map #(apply kv->query f %) x) (vector :vec) f)
-
-         ;IMapEntry is a vector, we must shortcut it
-         (instance? IMapEntry x)
+         (query? x) ;;already compiled
          x
 
+         (map? x)
+         (f [:vec (vals x)])
+
+         (instance? IMapEntry x)
+         (let [[k v] x]
+           [k (kv->query f k v)])
+
+         ;;FIXME redudant named dealing
          (vector? x)
-         (let [[q named] x
-               rslt (f [:seq q])]
-           (if (lvar? named)
-             (f [:named rslt (symbol named)])
-             rslt))
+         (let [[q named] x] ;TODO more options allowed for seq
+           (if (query? q)
+             (let [rslt (f [:seq q])]
+               (if (lvar? named)
+                 (f [:named rslt (symbol named)])
+                 rslt))
+             x))
 
          :else
          x))
@@ -280,7 +318,6 @@
 
 (comment
   (->query identity '{:a ? :b ?}))
-
 
 (defn pattern->query
   "take a function `f-named-var` to create named variable query, and `x`
@@ -291,7 +328,7 @@
     (let [ctor-map {:fn     fn-query
                     :vec    vector-query
                     :seq    seq-query
-                    :deco   (fn [q pp-pairs] (decorate-query q pp-pairs))
+                    :deco   (fn [q pp-pairs] #dbg (decorate-query q pp-pairs))
                     :filter (fn [q v] (filter-query q (if (fn? v) v #(= % v))))
                     :named  (fn [q sym] ((f-named-var sym) q))}
           [x-name & args] x]
@@ -315,4 +352,5 @@
   (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
   (run '{:a ? :b ?} {:a 3 :b 5})
   (run '{:a ? :b 2} {:a 1 :b 1})
-  (run '{:a ?a} {:a 1 :b 2}))
+  (run '{:a ?a} {:a 1 :b 2})
+  )
