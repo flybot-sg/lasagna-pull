@@ -4,93 +4,71 @@
 
 ## Rational
 
-Data for an application can be big, we always need a way to allow user to select derived data from a recursive data structure. 
+Organizing all data into a big data structure, makes it a single point of truth, is a good practice for clojure app. 
 
-Clojure has built-in function like `select-keys` can return same shape data from a big map, but it is too limited.
+ - Data organized by its domain nature, easy to navigate.
+ - No more duplicated data, prevents all kinds of out-of-sync problem.
+ - By checking this app data, program can be easier to reason about.
+
+If you use [fun-map](https://github.com/robertluo/fun-map), you can even put all your database and its operations into this big map, making this approach easier for real world, complicate data.
+
+Clojure has built-in function like `select-keys` can return same shape data from a map, but it is too limited.
 
 Inspired by [Datomic Pull API](https://docs.datomic.com/on-prem/pull.html) and [EQL](https://edn-query-language.org/eql/1.0.0/what-is-eql.html), this simple library provide you a simple and precise pattern allow you to pull data out in one call.
 
-## Pattern
+The idea of a general purpose query language for native clojure data structure should have features like:
 
-A pattern is a recursive data structure specific your desired data:
+ - Can be used locally or remotely, remotely using it as an app API is just a natural extension, it makes no sense that remote app can have some feature while code in same app can not.
+ - Can be expressed in pure clojure data structure.
+ - Follows the shape of app data, users can query by an example.
+## Query pattern
 
-### Simple Pattern
+Generally, query patterns just have same structure of your data, where there is a map, you use map in place of it; where there is a sequence (vector, list, etc.) of maps, you use a vector in place.
 
-Any value, just like clojure's `get` function, but returns the same data shape:
-
-```clojure
-(pull {:a 3 :b 4} :a) ;=> {:a 3}
-```
-
-When pulling on a sequence of data, it will apply to every element:
+You mark the data you are interested by a special `'?`, so:
 
 ```clojure
-(pull [{:a 5 :b 3} {:a 3 :b 2}] :a) ;=> [{:a 5} {:a 3}]
-
-;same structure means if you are pulling from a set, it will also return a set
-(pull #{{:a 5 :b 3} {:a 3 :b 2}} :a) ;=> #{{:a 5} {:a 2}}
-
+(pull/run '{:a ?,:b ?} {:a 1, :b 2, c: 3}) => [{:a 1, :b 2} {}]
 ```
+This works just like `select-keys`, only query patterns look like an example; but why is the returned value a pair of maps here?
 
-### Vector pattern
-
-Putting patterns inside a vector makes vector pattern, it results doing those queries one by one, and returns same structure.
+Because query patterns also support logical variable, so `run` returns the matched data and a logical variable map, let's try:
 
 ```clojure
-(pull {:a 3 :b 4 :c 5} [:a :b]) ;=> like select-keys, returns {:a 3 :b 4} 
-(pull [{:a 3 :b 4 :c 5} {:a 5}] ;=> [{:a 3 :b 4} {:a 5 :b :robertluo.pull.core/::noe}]
+(pull/run '{:a ?a, :b ?b} {:a 1, :b 2, :c 3}) => [{:a 1, :b 2} {'?a 1 '?b 2}]
 ```
 
-### Join pattern
-
-A join pattern is map contains one key query to one value query. It results a map with the keys are the keys of key patterns, and values are value patterns.
+You can expect that scalar value works like a filter, causing matching fail:
 
 ```clojure
-(pull {:a {:b 4 :c 5}} {:a :b}) ;=> {:a {:b 4}}
-(pull {:a {:b 4 :c 5 :d 6}} {:a [:b :d]} ;=> {:a {:b 4 :d 6}}
+(pull/run '{:a ?, :b 2}) {:a 1, :b 1}) => [{} {}] ;; value of :b does not match pattern
 ```
 
-### Pattern options
-
-You can pass options to any pattern by using a list, with the first element is the pattern itself, and options are pairs of a keyword (option name) and its argument.
-
-#### `:seq` option
-
-If a value is a collection of maps need to pull, you can specify by add
-`:seq` option to a pattern (pagination).
+and if same logical variable can not contain a single value, then all of them fail:
 
 ```clojure
-(pull [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4}] '(:a :seq [1 2])) ;=> [{:a 1} {:a 2}] 
+(pull/run '{:a ?x, :b ?x} {:a 2, :b 1}) => [{} {}]
 ```
 
-#### `:not-found` option
-
-If a value is not present in data, its value pulled will be `:robertluo.pullable.core/not-found` by default. However, you can replace it by using `:not-found 0` option.
-
-When pass `:robertluo.pullable/ignore` as the value, if not found, it not going to appear in the result. 
-```clojure
-(pull {} '(:a :not-found 0)) ;=> [{:a 0}]
-(pull {} '(:a ::pull/ignore)) ;=> {}
-```
-
-#### `:with` option
-
-If a value is a function, you can pass `:with` arguments, it will apply these arguments to the function and return it.
+Of course pattern support nested maps:
 
 ```clojure
-(pull {:a inc} '(:a :with [2])) ;=> {:a 3}
+(pull/run '{:a {:b ?b}} {:a {:b 3}}) => [{:a {:b 3}} {'?b 3}]
 ```
 
-#### `:batch` option
+### special cases
 
-If a value is a function, you can pass `:batch` arguments, it will call it multiple times by apply arguments to it.
+To match a sequence of maps, using `[]` to surround it:
 
 ```clojure
-(pull {:a inc} '(:a :batch [[1] [2]])) ;=> {:a '(2 3)}
+(pull/run '[{:a ?}] [{:a 3, :b 4} {:a 1} {}]) => [[{:a 3} {:a 1} {}], {}]
 ```
 
+Put logical variable after this single inner map, binding it to the whole sequence:
 
-Group the result if it is a sequence.
+```clojure
+(pull/run '[{:a ?} ?x] [{:a 3, :b 4} {:a 1} {}]) => [[{:a 3} {:a 1} {}], {'?x [{:a 3} {:a 1} {}]}]
+```
 
 ## License
 Copyright © 2020 Robertluo
