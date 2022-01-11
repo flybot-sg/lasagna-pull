@@ -1,4 +1,4 @@
-(ns robertluo.pullable.query
+(ns robertluo.pullable.core
   "Implementation of query")
 
 ;;== Query implementations

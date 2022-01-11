@@ -1,7 +1,7 @@
 (ns robertluo.pullable
   "Pull from data structure by using pattern."
   (:require
-   [robertluo.pullable.query :as query]))
+   [robertluo.pullable.core :as query]))
 
 (defn query
   "Returns a query from `pattern`. A query can be used to
@@ -15,6 +15,5 @@
   (query/run q data))
 
 (comment
-  (def q (query {:a '? :b '?}))
   (run '{:a ? :b ?} {:a 3 :b 2})
   )
