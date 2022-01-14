@@ -1,5 +1,5 @@
-(ns robertluo.pullable.query-test
-  (:require [robertluo.pullable.query :as sut]
+(ns robertluo.pullable.core-test
+  (:require [robertluo.pullable.core :as sut]
             [clojure.test :refer [deftest is testing are]])
   (:import [clojure.lang ExceptionInfo]))
 
@@ -87,68 +87,3 @@
   (are [data exp] (= exp (sut/run-bind #((% 'a) (sut/fn-query :a)) data))
     {:a 1} [{:a 1} {'a 1}]
     {}     [{} {'a nil}]))
-
-(deftest ->query
-  (are [m exp] (= exp (sut/->query identity m))
-    '{:a ?}                 [:vec [[:fn :a]]]
-    '{:a ? :b ?}            [:vec [[:fn :a] [:fn :b]]]
-    '{:a ?a}                [:vec [[:named [:fn :a] '?a]]]
-    '{:a {:b ?}}            [:vec [[:fn :a :a [:vec [[:fn :b]]]]]]
-    '{:b 2}                 [:vec [[:filter [:fn :b] 2]]]
-    '{:b (?b :not-found 3)} [:vec [[:named [:deco [:fn :b] [[:not-found 3]]] '?b]]]
-    '[{:a ?} ?x]            [:named [:seq [:vec [[:fn :a]]]] '?x]
-    '[{:a [{:b ?}]}]        [:seq [:vec [[:fn :a :a [:seq [:vec [[:fn :b]]]]]]]]
-    ))
-
-(deftest #^:integrated run
-  (are [data x exp] (= exp (sut/run x data))
-    ;;basic patterns
-    {:a 1}           '{:a ?}        [{:a 1} {}]
-    {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} {}]
-
-    ;;filtered
-    {:a 1 :b 2}      '{:a ? :b 1}   [{} {}]
-
-    ;;filter with a function
-    {:a 8 :b 2}      {:a '? :b even?} [{:a 8} {}]
-
-    ;;guard clause
-    {:a 2}           {:a (list '? :when even?)}  [{:a 2} {}]
-
-    ;;guard with not-found
-    {:a 1}           {:a (list '? :when even? :not-found 0)}  [{:a 0} {}]
-
-    ;;with option
-    {:a inc}
-    '{:a (?a :with [3])}
-    [{:a 4} {'?a 4}]
-
-    ;;seq query
-    [{:a 1} {:a 2 :b 2} {}]
-    '[{:a ?}]
-    [[{:a 1} {:a 2} {}] {}]
-
-    ;;nested map query
-    {:a {:b 1 :c 2}}
-    '{:a {:b ?}}
-    [{:a {:b 1}} {}]
-
-    {:a {:b [{:c 1 :d 5} {:c 2}]}}
-    '{:a {:b [{:c ?}]}}
-    [{:a {:b [{:c 1} {:c 2}]}} {}]
-
-    ;;named variable
-    {:a 1 :b 2}
-    '{:a ?a}
-    [{:a 1} {'?a 1}]
-
-    ;;named join
-    {:a 1 :b 1}
-    '{:a ?a :b ?a}
-    [{:a 1 :b 1} {'?a 1}]
-
-    ;;capture a sequence
-    [{:a 1 :b 2} {:a 3 :b 4 :c 5} {:b 6}]
-    '[{:a ? :b ?} ?g]
-    [[{:a 1 :b 2} {:a 3 :b 4} {:b 6}]
-     {'?g [{:a 1 :b 2} {:a 3 :b 4} {:b 6}]}]))

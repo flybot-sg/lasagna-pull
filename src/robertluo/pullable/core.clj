@@ -1,4 +1,4 @@
-(ns robertluo.pullable.query
+(ns robertluo.pullable.core
   "Implementation of query")
 
 ;;== Query implementations
@@ -72,7 +72,7 @@
   ([k f]
    (fn-query k f nil))
   ([k f child]
-   (fn acc [data]
+   (fn [data]
      (when-not (associative? data)
        (data-error "associative(map) expected" k data))
      (q k map-acceptor
@@ -109,14 +109,15 @@
   [child f-post-process]
   (fn [data]
     (let [child-q (child data)
-          [k v] (some-> (child-q vector) (f-post-process))]
+          [k v]   (some-> (child-q vector) (f-post-process))]
       (q k (:acceptor child-q) (fn [] v)))))
 
 (defn filter-query
   "returns a filter query which will not appears in result data, but will
    void other query if in a vector query, `pred` is the filter condition"
   [q pred]
-  (post-process-query q (fn [[k v]] [(when (pred v) k) nil])))
+  (let [pred (if (fn? pred) pred #(= pred %))]
+    (post-process-query q (fn [[k v]] [(when (pred v) k) nil]))))
 
 (comment
   (run-query (filter-query (fn-query :a) odd?) {:a 2}))
@@ -189,166 +190,37 @@
 (defmulti apply-post
   "create a post processor by ::pp-type, returns a function takes
    k-v pair, returns the same shape of data"
-  (fn [pp-type _] pp-type))
+  :proc/type)
 
 (defmethod apply-post :default
-  [_ _]
+  [_]
   identity)
 
 (defn decorate-query
   [q pp-pairs]
   (reduce
    (fn [acc [pp-type pp-value]]
-     (post-process-query acc (apply-post pp-type pp-value)))
+     (post-process-query
+      acc
+      (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
 (defmethod apply-post :when
-  [_ pred]
+  [{:proc/keys [val]}]
   (fn [[k v]]
-    [k (when (pred v) v)]))
+    [k (when (val v) v)]))
 
 (defmethod apply-post :not-found
-  [_ val]
+  [{:proc/keys [val]}]
   (fn [[k v]]
     [k (or v val)]))
 
 (defmethod apply-post :with
-  [_ args]
+  [{:proc/keys [val]}]
   (fn [[k v]]
     (when-not (fn? v)
       (data-error ":with option need a function" k v))
-    [k (apply v args)]))
+    [k (apply v val)]))
 
 ;;TODO pagination
 ;;TODO batch option
-
-;;== pattern
-
-(defn pattern-error
-  [reason pattern]
-  (throw (ex-info reason {:pattern pattern})))
-
-(defn lvar?
-  "predict if `x` is a logical variable, i.e, starts with `?` and has a name,
-     - ?a is a logic variable
-     - ? is not"
-  [x]
-  (and (symbol? x) (re-matches #"\?.+" (name x))))
-
-(defn query?
-  [x]
-  (some-> x meta ::query?))
-
-(defn kv->query
-  "make a query from `k`, `v` and `f` to actually create the query"
-  [f k v]
-  (f
-   (cond
-     (= v '?)
-     [:fn k]
-
-     (lvar? v)
-     [:named (f [:fn k]) (symbol v)]
-
-     (query? v)
-     [:fn k k v]
-
-     (sequential? v)
-     (let [[x & opts] v]
-       (when-not (or (= x '?) (lvar? x))
-         (pattern-error "first item of optional list must be a variable" v))
-       (when-not (even? (count opts))
-         (pattern-error "options count must be even" opts))
-       (if (lvar? x)
-         [:named (f [:deco (f [:fn k]) (partition 2 opts)]) (symbol x)]
-         [:deco (kv->query f k x) (partition 2 opts)]))
-
-     :else
-     [:filter (f [:fn k]) v])))
-
-(require '[clojure.walk :refer [postwalk]])
-(import '[clojure.lang IMapEntry])
-
-(comment
-  (postwalk
-   (fn [x]
-     (cond
-       (instance? IMapEntry x)
-       (let [[k v] x]
-         [(str k) v])
-       (map? x)
-       (vec (seq x))
-       :else x))
-   {:a 1 :b 2})
-  )
-
-(defn ->query
-  "walk through expression `x`, apply `f`(query constructor) to the parts
-   specified a query, returns it."
-  [f x]
-  (let [f (comp #(vary-meta % assoc ::query? true) f)]
-    (postwalk
-     (fn [x]
-       (cond
-         (query? x) ;;already compiled
-         x
-
-         (map? x)
-         (f [:vec (vals x)])
-
-         (instance? IMapEntry x)
-         (let [[k v] x]
-           [k (kv->query f k v)])
-
-         ;;FIXME redudant named dealing
-         (vector? x)
-         (let [[q named] x] ;TODO more options allowed for seq
-           (if (query? q)
-             (let [rslt (f [:seq q])]
-               (if (lvar? named)
-                 (f [:named rslt (symbol named)])
-                 rslt))
-             x))
-
-         :else
-         x))
-     x)))
-
-(comment
-  (->query identity '{:a ? :b ?}))
-
-(defn pattern->query
-  "take a function `f-named-var` to create named variable query, and `x`
-   is the expression to specify whole query,
-   returns a function takes named variable constructor"
-  [f-named-var]
-  (fn [x]
-    (let [ctor-map {:fn     fn-query
-                    :vec    vector-query
-                    :seq    seq-query
-                    :deco   (fn [q pp-pairs] (decorate-query q pp-pairs))
-                    :filter (fn [q v] (filter-query q (if (fn? v) v #(= % v))))
-                    :named  (fn [q sym] ((f-named-var sym) q))}
-          [x-name & args] x]
-      (if-let [f (get ctor-map x-name)]
-        (apply f args)
-        (pattern-error "not understandable pattern" x)))))
-
-(defn compile-x
-  "compile query pattern `x` returned a compiled query function"
-  [x]
-  (fn [f-named-var]
-    (->query (pattern->query f-named-var) x)))
-
-(defn run
-  "run query pattern `x` on `data`, returns vector of matched data and named
-   variable binding map."
-  [x data]
-  (run-bind (if (fn? x) x (compile-x x)) data))
-
-(comment
-  (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
-  (run '{:a ? :b ?} {:a 3 :b 5})
-  (run '{:a ? :b 2} {:a 1 :b 1})
-  (run '{:a ?a} {:a 1 :b 2})
-  )
