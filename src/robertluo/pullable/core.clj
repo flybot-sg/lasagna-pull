@@ -72,7 +72,7 @@
   ([k f]
    (fn-query k f nil))
   ([k f child]
-   (fn acc [data]
+   (fn [data]
      (when-not (associative? data)
        (data-error "associative(map) expected" k data))
      (q k map-acceptor
@@ -109,14 +109,15 @@
   [child f-post-process]
   (fn [data]
     (let [child-q (child data)
-          [k v] (some-> (child-q vector) (f-post-process))]
+          [k v]   (some-> (child-q vector) (f-post-process))]
       (q k (:acceptor child-q) (fn [] v)))))
 
 (defn filter-query
   "returns a filter query which will not appears in result data, but will
    void other query if in a vector query, `pred` is the filter condition"
   [q pred]
-  (post-process-query q (fn [[k v]] [(when (pred v) k) nil])))
+  (let [pred (if (fn? pred) pred #(= pred %))]
+    (post-process-query q (fn [[k v]] [(when (pred v) k) nil]))))
 
 (comment
   (run-query (filter-query (fn-query :a) odd?) {:a 2}))
@@ -189,42 +190,37 @@
 (defmulti apply-post
   "create a post processor by ::pp-type, returns a function takes
    k-v pair, returns the same shape of data"
-  (fn [pp-type _] pp-type))
+  :proc/type)
 
 (defmethod apply-post :default
-  [_ _]
+  [_]
   identity)
 
 (defn decorate-query
   [q pp-pairs]
   (reduce
    (fn [acc [pp-type pp-value]]
-     (post-process-query acc (apply-post pp-type pp-value)))
+     (post-process-query
+      acc
+      (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
 (defmethod apply-post :when
-  [_ pred]
+  [{:proc/keys [val]}]
   (fn [[k v]]
-    [k (when (pred v) v)]))
+    [k (when (val v) v)]))
 
 (defmethod apply-post :not-found
-  [_ val]
+  [{:proc/keys [val]}]
   (fn [[k v]]
     [k (or v val)]))
 
 (defmethod apply-post :with
-  [_ args]
+  [{:proc/keys [val]}]
   (fn [[k v]]
     (when-not (fn? v)
       (data-error ":with option need a function" k v))
-    [k (apply v args)]))
+    [k (apply v val)]))
 
 ;;TODO pagination
 ;;TODO batch option
-
-(comment
-  (run-query (->query (pattern->query identity) '{:a ?}) {:a 1})
-  (run '{:a ? :b ?} {:a 3 :b 5})
-  (run '{:a ? :b 2} {:a 1 :b 1})
-  (run '{:a ?a} {:a 1 :b 2})
-  )
