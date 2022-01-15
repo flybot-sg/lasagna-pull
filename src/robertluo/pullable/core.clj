@@ -205,10 +205,18 @@
       (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
+(defn assert-arg!
+  "an error that represent apply-post illegal argument"
+  [pred arg]
+  (when-not (pred (:proc/val arg))
+    (throw (ex-info "illegal argument" arg))))
+
 (defmethod apply-post :when
-  [{:proc/keys [val]}]
-  (fn [[k v]]
-    [k (when (val v) v)]))
+  [arg]
+  (let [{pred :proc/val} arg]
+    (assert-arg! fn? arg)
+    (fn [[k v]]
+      [k (when (pred v) v)])))
 
 (defmethod apply-post :not-found
   [{:proc/keys [val]}]
@@ -216,11 +224,30 @@
     [k (or v val)]))
 
 (defmethod apply-post :with
-  [{:proc/keys [val]}]
-  (fn [[k v]]
-    (when-not (fn? v)
-      (data-error ":with option need a function" k v))
-    [k (apply v val)]))
+  [arg]
+  (let [{args :proc/val} arg]
+    (assert-arg! vector? arg)
+    (fn [[k f]]
+      (when-not (fn? f)
+        (data-error "value must be a function" k f))
+      [k (apply f args)])))
 
-;;TODO pagination
-;;TODO batch option
+(defmethod apply-post :batch
+  [arg]
+  (assert-arg! #(and (vector? %) (every? vector? %)) arg)
+  (let [{args-vec :proc/val} arg]
+    (fn [[k f]]
+      (when-not (fn? f)
+        (data-error "value must be a function" k f))
+      [k (map #(apply f %) args-vec)])))
+
+(defmethod apply-post :seq
+  [arg]
+  (assert-arg! vector? arg)
+  (let [[from cnt] (:proc/val arg)
+        from       (or from 0)
+        cnt        (or cnt 0)]
+    (fn [[k v]]
+      (when-not (seqable? v)
+        (data-error "seq option can only be used on sequences" k v))
+      [k (->> v (drop from) (take cnt))])))
