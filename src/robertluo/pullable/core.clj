@@ -222,5 +222,16 @@
       (data-error ":with option need a function" k v))
     [k (apply v val)]))
 
-;;TODO pagination
+(defmethod apply-post :seq
+  [{:proc/keys [val]}]
+  (when-not (vector? val)
+    (throw (ex-info "seq option's arugment must be a vector" {:v val})))
+  (let [[from cnt] val
+        from       (or from 0)
+        cnt        (or cnt 0)]
+    (fn [[k v]]
+      (when-not (seqable? v)
+        (data-error "seq option can only be used on sequences" k v))
+      [k (->> v (drop from) (take cnt))])))
+
 ;;TODO batch option

@@ -87,3 +87,10 @@
   (are [data exp] (= exp (sut/run-bind #((% 'a) (sut/fn-query :a)) data))
     {:a 1} [{:a 1} {'a 1}]
     {}     [{} {'a nil}]))
+
+(deftest apply-post-seq
+  (is (thrown? ExceptionInfo (sut/apply-post #:proc{:type :seq :val 3})))
+  (let [f (sut/apply-post #:proc{:type :seq :val [1 3]})]
+    (is (thrown? ExceptionInfo (f [:a 3])))
+    (is (= [:a [{:a 1} {:a 2} {:a 3}]]
+           (f [:a [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4}]])))))
