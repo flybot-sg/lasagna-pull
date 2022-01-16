@@ -30,10 +30,6 @@
   (fn [f-named-var]
     (ptn/->query (pattern->query f-named-var) pattern)))
 
-(comment
-  (query '{:a ? :b ?})
-  )
-
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."
   [pattern data]
