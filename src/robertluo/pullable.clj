@@ -16,7 +16,8 @@
                     :seq    core/seq-query
                     :filter core/filter-query
                     :named  (fn [q sym] ((f-named-var sym) q))
-                    :deco   (fn [q pp-pairs] 
+                    :join   core/join-query
+                    :deco   (fn [q pp-pairs]
                               (core/decorate-query q pp-pairs))}
           [x-name & args] x]
       (if-let [f (get ctor-map x-name)]

@@ -7,16 +7,7 @@
   (testing "fn-query select key from a value"
     (are [args data exp] (= exp (sut/run-query (apply sut/fn-query args) data))
       [:a] {:a 1 :b 2}   {:a 1}
-      [:a] {:b 2}        {}
-      ;;joined query
-      [:a :a (sut/fn-query :b)]
-      {:a {:b 2 :c 3}}   {:a {:b 2}}
-
-      [:a :a (sut/fn-query :b)]
-      {:a {:c 3}}        {:a {}}
-
-      [:a :a (sut/fn-query :b)]
-      {:b 1 :c 2}        {}))
+      [:a] {:b 2}        {}))
   (testing "fn-query throws data error if data is not a map (associative)"
     (is (thrown? ExceptionInfo (sut/run-query (sut/fn-query :a) 3)))))
 
@@ -37,14 +28,6 @@
         {})))
   (testing "a single child is equivlent to itself"
     (is (= {:a 1} (sut/run-query (sut/vector-query [(sut/fn-query :a)]) {:a 1}))))
-  (testing "inside a fn-query"
-    (let [q (sut/vector-query
-             [(sut/fn-query :a :a (sut/vector-query
-                                   [(sut/fn-query :b) (sut/fn-query :c)]))])]
-      (are [data exp] (= exp (sut/run-query q data))
-        {:a {:b 1 :c 2 :d 3}}
-        {:a {:b 1 :c 2}}
-        )))
   (testing "has a filter child"
     (let [q (sut/vector-query
              [(sut/fn-query :a) (sut/filter-query (sut/fn-query :b) #(= % 1))])]

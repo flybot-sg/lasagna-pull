@@ -17,19 +17,25 @@
   [_ v]
   v)
 
-;;General structure of a query
-(defrecord PullQuery [id acceptor val-getter]
-  clojure.lang.IFn
-  (invoke
-    [_ accept]
-    ((or accept acceptor) id (val-getter))))
-
-(def pq
+(defn pq
   "construct a general query:
     - `id` key of this query
     - `acceptor` default acceptor of this query, used when no acceptor specified when invoke
     - `val-getter` is the function to extract data"
-  ->PullQuery)
+  [id acceptor val-getter]
+  (with-meta
+    (fn [accept]
+      ((or accept acceptor) id (val-getter)))
+    {::id id ::acceptor acceptor}))
+
+(defn id 
+  "returns id of a query"
+  [query]
+  (some-> query meta ::id))
+
+(defn acceptor
+  [query]
+  (some-> query meta ::acceptor))
 
 (defn run-query
   "run a query `q` on `data`, returns the query result function.
@@ -80,19 +86,26 @@
   ([k]
    (fn-query k #(get % k)))
   ([k f]
-   (fn-query k f nil))
-  ([k f child]
    (fn [data]
      (when-not (associative? data)
        (data-error! "associative(map) expected" k data))
-     (pq k map-acceptor
-        #(let [v (f data)]
-           (when-not (nil? v)
-             (let [child-q (or child (term-query v))]
-               ((child-q v) nil))))))))
+     (pq k map-acceptor #(f data)))))
 
 (comment
   (run-query (fn-query :a) {:a 3}))
+
+(defn join-query
+  [parent-q q]
+  (fn [data]
+    (let [f-parent (parent-q data)
+          v        (f-parent val-acceptor)]
+      (pq (id f-parent) 
+          (acceptor f-parent)
+          #(when-not (nil? v) ((q v) nil))))))
+
+(comment
+  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 1 :c 2}})
+  )
 
 ;; A vector query is a query collection as `queries`
 (defn vector-query
@@ -120,7 +133,7 @@
   (fn [data]
     (let [child-q (child data)
           [k v]   (some-> (child-q vector) (f-post-process))]
-      (pq k (:acceptor child-q) (fn [] v)))))
+      (pq k (acceptor child-q) (fn [] v)))))
 
 (defn filter-query
   "returns a filter query which will not appears in result data, but will
@@ -140,7 +153,7 @@
      (when-not (sequential? data)
        (data-error! "sequence expected" nil data))
      (let [v (map #((qr %) nil) data)]
-       (pq (:id qr) val-acceptor (fn [] v))))))
+       (pq (id qr) val-acceptor (fn [] v))))))
 
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))

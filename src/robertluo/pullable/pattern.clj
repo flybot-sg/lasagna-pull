@@ -23,19 +23,20 @@
              qr))
           (val-of
            [k v]
-           (let [[q & opts] (if (sequential? v) v (list v))]
+           (let [[k & opts] (if (sequential? k) k (list k))
+                 q (apply-opts (f [:fn k]) opts)]
              (cond
-               (= '? q)
-               (apply-opts (f [:fn k]) opts)
+               (= '? v)
+               q
 
-               (lvar? q)
-               (f [:named (apply-opts (f [:fn k]) opts) q])
+               (lvar? v)
+               (f [:named q v])
 
                (or (map? v) (vector? v))
-               (f [:fn k k (->query f v)])
+               (f [:join q (->query f v)])
 
                :else
-               (f [:filter (apply-opts (f [:fn k]) opts) q]))
+               (f [:filter q v]))
              ))]
     (cond
       (map? x)
@@ -58,7 +59,5 @@
       (pattern-error "unable to understand" x))))
 
 (comment
-  (->query #(concat % ['ok]) '{:a (?a :with [3])})
-  (->query #(concat % ['ok]) '{:a ?a})
-  (->query identity '[{:a ?} ?x])
-  (->query identity '{a {:b ?b}}))
+  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})
+  )

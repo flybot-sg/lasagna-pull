@@ -58,7 +58,7 @@ Of course, pattern support nested maps:
 (pull/run '{:a {:b ?b}} {:a {:b 3}}) => [{:a {:b 3}} {'?b 3}]
 ```
 
-### special cases
+### sequence of maps
 
 To match a sequence of maps, using `[]` to surround it:
 
@@ -79,27 +79,27 @@ After a query matches to data, we can pass some options to it, using a list to s
 #### `not-found`
 
 ```clojure
-(pull/run '{:a (? :not-found ::not-found)} {:b 5}) => [{:a ::not-found} {}]
+(pull/run '{(:a :not-found ::not-found) ?} {:b 5}) => [{:a ::not-found} {}]
 ```
 
 #### `when`
 
 ```clojure
-(pull/run {:a (list '? :when even?)} {:a 5}) => [{} {}] ;;not found because the value is not even
+(pull/run {(:a :when even?) '?} {:a 5}) => [{} {}] ;;not found because the value is not even
 ```
 #### `with`
 
 If the value of a query is a function, using `:with` option can invoke it and returns the result instead:
 
 ```clojure
-(pull/run '{:a (? :with [5])} {:a #(* % 2)}) => [{:a 10} {}]
+(pull/run '{(:a :with [5]) ?} {:a #(* % 2)}) => [{:a 10} {}]
 ```
 #### `batch`
 
 Batched version of `:with` option:
 
 ```clojure
-(pull/run '{:a (? :batch [[5] [7]])} {:a #(* % 2)}) => [{:a [10 14]} {}]
+(pull/run '{(:a :batch [[5] [7]]) ?} {:a #(* % 2)}) => [{:a [10 14]} {}]
 ```
 
 #### `seq`
@@ -107,7 +107,7 @@ Batched version of `:with` option:
 Apply to sequence value of a query, useful for pagination:
 
 ```clojure
-(pull/run '[{:a (? :seq [1 3])}]} [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4}]) => [[{:a 1} {:a 2} {:a 3}] {}]
+(pull/run '[{:a ? :b ?} ? :seq [2 3]] [{:a 0} {:a 1} {:a 2} {:a 3} {:a 4}]) => [[{:a 1} {:a 2} {:a 3}] {}]
 ```
 
 ## License
