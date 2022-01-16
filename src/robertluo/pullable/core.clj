@@ -3,11 +3,6 @@
    
    A query is a function which can extract k v from data.")
 
-(defn term-query
-  "identity query"
-  ([v]
-   (constantly (constantly v))))
-
 ;;### Idea of acceptor
 ;; An acceptor is a function accepts k, v; it is the argument
 ;; of a query.
@@ -17,6 +12,7 @@
   [_ v]
   v)
 
+;;TODO change val-getter from 0-arity to 1-arity: data as the argument
 (defn pq
   "construct a general query:
     - `id` key of this query
@@ -45,9 +41,6 @@
    means that the query are free to construct the result."
   [q data]
   ((q data) nil))
-
-(comment
-  (run-query (term-query {:a 3}) {}))
 
 (defn accept
   "General acceptor function design: when k is nil, means there is no
@@ -95,6 +88,7 @@
   (run-query (fn-query :a) {:a 3}))
 
 (defn join-query
+  "returns a joined query: `q` queries in `parent-q`'s returned value"
   [parent-q q]
   (fn [data]
     (let [f-parent (parent-q data)

@@ -3,7 +3,7 @@
 
 ;;== pattern
 
-(defn pattern-error
+(defn pattern-error!
   [reason pattern]
   (throw (ex-info reason {:pattern pattern})))
 
@@ -11,9 +11,10 @@
   "predict if `x` is a logical variable, i.e, starts with `?` and has a name,
      - ?a is a logic variable
      - ? is not"
-  [x]
-  (and (symbol? x) (re-matches #"\?.+" (name x))))
+  [v]
+  (and (symbol? v) (re-matches #"\?.+" (name v))))
 
+;;FIXME use trampoline to protect stack
 (defn ->query
   [f x]
   (letfn [(apply-opts
@@ -53,10 +54,10 @@
           qr
           
           :else
-          (pattern-error "seq options must start with a variable" x)))
+          (pattern-error! "seq options must start with a variable" x)))
       
       :else
-      (pattern-error "unable to understand" x))))
+      (pattern-error! "unable to understand" x))))
 
 (comment
   (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})

@@ -22,7 +22,7 @@
           [x-name & args] x]
       (if-let [f (get ctor-map x-name)]
         (apply f args)
-        (ptn/pattern-error "not understandable pattern" x)))))
+        (ptn/pattern-error! "not understandable pattern" x)))))
 
 (defn query
   "Returns a query from `pattern`. A query can be used to

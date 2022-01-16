@@ -69,4 +69,5 @@
     ;;batch option
     {:a identity}
     '{(:a :batch [[3] [{:ok 1}]]) ?a}
-    [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]))
+    [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]
+    ))
