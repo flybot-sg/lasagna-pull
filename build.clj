@@ -5,6 +5,7 @@
 
 (def lib 'robertluo/pullable)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
+(def url "https://github.com/robertluo/pullable")
 
 (defn tests
   [opts]
@@ -13,7 +14,7 @@
 (defn ci
   [opts]
   (-> opts
-      (assoc :lib lib :version version)
+      (assoc :lib lib :version version :scm {:url url})
       (cb/clean)
       (cb/run-tests)
       (cb/jar)))

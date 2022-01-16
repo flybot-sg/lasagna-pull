@@ -11,6 +11,12 @@
   (testing "fn-query throws data error if data is not a map (associative)"
     (is (thrown? ExceptionInfo (sut/run-query (sut/fn-query :a) 3)))))
 
+(deftest join-query
+  (are [data exp] (= exp (sut/run-query (sut/join-query (sut/fn-query :a) (sut/fn-query :b)) data))
+    {:a {:b 1 :c 2}}    {:a {:b 1}}
+    {:c 3}              {}
+    ))
+
 (deftest filter-query
   (are [data exp] (= exp (sut/run-query (sut/filter-query (sut/fn-query :a) #(= % 3)) data))
     {:a 3}   {}
