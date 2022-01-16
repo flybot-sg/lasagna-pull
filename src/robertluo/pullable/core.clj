@@ -1,25 +1,35 @@
 (ns robertluo.pullable.core
-  "Implementation of query")
-
-;;== Query implementations
+  "Implementation of queries.
+   
+   A query is a function which can extract k v from data.")
 
 (defn term-query
-  "identity query, "
+  "identity query"
   ([v]
    (constantly (constantly v))))
+
+;;### Idea of acceptor
+;; An acceptor is a function accepts k, v; it is the argument
+;; of a query.
 
 (defn val-acceptor
   "identity acceptor, ignore k, only return `v`"
   [_ v]
   v)
 
+;;General structure of a query
 (defrecord PullQuery [id acceptor val-getter]
   clojure.lang.IFn
   (invoke
     [_ accept]
     ((or accept acceptor) id (val-getter))))
 
-(def q ->PullQuery)
+(def pq
+  "construct a general query:
+    - `id` key of this query
+    - `acceptor` default acceptor of this query, used when no acceptor specified when invoke
+    - `val-getter` is the function to extract data"
+  ->PullQuery)
 
 (defn run-query
   "run a query `q` on `data`, returns the query result function.
@@ -58,7 +68,7 @@
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
-(defn data-error
+(defn data-error!
   "throw an exception specify data error"
   [reason k data]
   (throw (ex-info reason {:k k :data data})))
@@ -74,8 +84,8 @@
   ([k f child]
    (fn [data]
      (when-not (associative? data)
-       (data-error "associative(map) expected" k data))
-     (q k map-acceptor
+       (data-error! "associative(map) expected" k data))
+     (pq k map-acceptor
         #(let [v (f data)]
            (when-not (nil? v)
              (let [child-q (or child (term-query v))]
@@ -99,7 +109,7 @@
                                  (partial accept conj! acc))))
                              collector)
                      (persistent!))]
-      (q (map first v) val-acceptor #(into {} v)))))
+      (pq (map first v) val-acceptor #(into {} v)))))
 
 (comment
   (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
@@ -110,7 +120,7 @@
   (fn [data]
     (let [child-q (child data)
           [k v]   (some-> (child-q vector) (f-post-process))]
-      (q k (:acceptor child-q) (fn [] v)))))
+      (pq k (:acceptor child-q) (fn [] v)))))
 
 (defn filter-query
   "returns a filter query which will not appears in result data, but will
@@ -128,9 +138,9 @@
   ([qr]
    (fn [data]
      (when-not (sequential? data)
-       (data-error "sequence expected" nil data))
+       (data-error! "sequence expected" nil data))
      (let [v (map #((qr %) nil) data)]
-       (q (:id qr) val-acceptor (fn [] v))))))
+       (pq (:id qr) val-acceptor (fn [] v))))))
 
 (comment
   (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
@@ -229,7 +239,7 @@
     (assert-arg! vector? arg)
     (fn [[k f]]
       (when-not (fn? f)
-        (data-error "value must be a function" k f))
+        (data-error! "value must be a function" k f))
       [k (apply f args)])))
 
 (defmethod apply-post :batch
@@ -238,7 +248,7 @@
   (let [{args-vec :proc/val} arg]
     (fn [[k f]]
       (when-not (fn? f)
-        (data-error "value must be a function" k f))
+        (data-error! "value must be a function" k f))
       [k (map #(apply f %) args-vec)])))
 
 (defmethod apply-post :seq
@@ -249,5 +259,5 @@
         cnt        (or cnt 0)]
     (fn [[k v]]
       (when-not (seqable? v)
-        (data-error "seq option can only be used on sequences" k v))
+        (data-error! "seq option can only be used on sequences" k v))
       [k (->> v (drop from) (take cnt))])))
