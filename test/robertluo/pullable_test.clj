@@ -16,15 +16,19 @@
     {:a 8 :b 2}      {:a '? :b even?} [{:a 8} {}]
 
     ;;guard clause
-    {:a 2}           {:a (list '? :when even?)}  [{:a 2} {}]
+    {:a 2}           {(list :a :when even?) '?}  [{:a 2} {}]
 
     ;;guard with not-found
-    {:a 1}           {:a (list '? :when even? :not-found 0)}  [{:a 0} {}]
+    {:a 1}           {(list :a :when even? :not-found 0) '?}  [{:a 0} {}]
 
     ;;with option
     {:a inc}
-    '{:a (?a :with [3])}
+    '{(:a :with [3]) ?a}
     [{:a 4} {'?a 4}]
+
+    {:a identity}
+    '{(:a :with [{:b 2 :c 3}]) {:b ?}}
+    [{:a {:b 2}} {}]
 
     ;;seq query
     [{:a 1} {:a 2 :b 2} {}]
@@ -64,6 +68,5 @@
 
     ;;batch option
     {:a identity}
-    {:a (list '?a :batch [[3] [{:ok 1}]])}
-    [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]
-    ))
+    '{(:a :batch [[3] [{:ok 1}]]) ?a}
+    [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]))
