@@ -12,7 +12,6 @@
   [_ v]
   v)
 
-;;TODO change val-getter from 0-arity to 1-arity: data as the argument
 (defn pq
   "construct a general query:
     - `id` key of this query
