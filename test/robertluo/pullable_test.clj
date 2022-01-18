@@ -1,7 +1,11 @@
 (ns robertluo.pullable-test
   (:require
    [robertluo.pullable :as sut]
-   [clojure.test :refer [deftest are]]))
+   [clojure.test :refer [deftest are testing is]]))
+
+(deftest query
+  (testing "`query` can precompile and run"
+    (is (= [{:a 1} {}] (sut/run (sut/query '{:a ?}) {:a 1})))))
 
 (deftest ^:integrated run
   (are [data x exp] (= exp (sut/run x data))

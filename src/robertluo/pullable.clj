@@ -14,7 +14,7 @@
     (let [ctor-map {:fn     core/fn-query
                     :vec    core/vector-query
                     :seq    core/seq-query
-                    :filter core/filter-query
+                    :filter (fn [q v] (core/filter-query q (if (fn? v) v #(= % v))))
                     :named  (fn [q sym] ((f-named-var sym) q))
                     :join   core/join-query
                     :deco   (fn [q pp-pairs]
@@ -37,6 +37,6 @@
   (core/run-bind (if (fn? pattern) pattern (query pattern)) data))
 
 (comment
-  (run '{:a ? :b 1} {:a 3 :b 2})
-  (run {:a (list '? :when even?)} {:a 2})
+  (core/id (query '{:a ?}))
+  (run '{(:a :with [{}]) {(:b :not-found ::ok) ?}} {:a identity})
   )
