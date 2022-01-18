@@ -209,9 +209,15 @@
    k-v pair, returns the same shape of data"
   :proc/type)
 
+(defn assert-arg!
+  "an error that represent apply-post illegal argument"
+  [pred arg]
+  (when-not (pred (:proc/val arg))
+    (throw (ex-info "illegal argument" arg))))
+
 (defmethod apply-post :default
-  [_]
-  identity)
+  [arg]
+  (assert-arg! (constantly false) arg))
 
 (defn decorate-query
   [q pp-pairs]
@@ -221,12 +227,6 @@
       acc
       (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
-
-(defn assert-arg!
-  "an error that represent apply-post illegal argument"
-  [pred arg]
-  (when-not (pred (:proc/val arg))
-    (throw (ex-info "illegal argument" arg))))
 
 (defmethod apply-post :when
   [arg]
@@ -268,3 +268,27 @@
       (when-not (seqable? v)
         (data-error! "seq option can only be used on sequences" k v))
       [k (->> v (drop from) (take cnt))])))
+
+;;#### :watch option
+;; Takes an function as the argument (:proc/val): 
+;;    [:=> [:catn [:old-value :any] [:new-value :any]] :any]
+;; returns `nil` when your do want to watch it anymore.
+;; Can watch on a IRef value
+
+(def watchable?
+  "pred if `x` is watchable"
+  (partial instance? clojure.lang.IRef))
+
+(defmethod apply-post :watch
+  [arg]
+  (assert-arg! fn? arg)
+  (let [f       (:proc/val arg)
+        w-k     ::watch
+        watcher (fn [_ watched old-value new-value]
+                  (when (nil? (f old-value new-value))
+                    (remove-watch watched w-k)))]
+    (fn [[k v]]
+      (when-not (watchable? v)
+        (data-error! "watch option can only apply to an watchable value" k v))
+      (add-watch v w-k watcher)
+      [k @v])))
