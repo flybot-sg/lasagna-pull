@@ -16,7 +16,8 @@
 
 ;;FIXME use trampoline to protect stack
 (defn ->query
-  [f x]
+  "compile `pattern` by applying query creation function `f` to it."
+  [f pattern]
   (letfn [(apply-opts
            [qr opts]
            (if (seq opts)
@@ -40,11 +41,11 @@
                (f [:filter q v]))
              ))]
     (cond
-      (map? x)
-      (f [:vec (map #(apply val-of %) x)])
+      (map? pattern)
+      (f [:vec (map #(apply val-of %) pattern)])
       
-      (vector? x)
-      (let [[q var-name & opts] x
+      (vector? pattern)
+      (let [[q var-name & opts] pattern
             qr (apply-opts (f [:seq (->query f q)]) opts)]
         (cond
           (lvar? var-name)
@@ -54,10 +55,10 @@
           qr
           
           :else
-          (pattern-error! "seq options must start with a variable" x)))
+          (pattern-error! "seq options must start with a variable" pattern)))
       
       :else
-      (pattern-error! "unable to understand" x))))
+      (pattern-error! "unable to understand" pattern))))
 
 (comment
   (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})
