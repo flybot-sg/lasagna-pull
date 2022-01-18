@@ -3,11 +3,6 @@
    
    A query is a function which can extract k v from data.")
 
-(defn term-query
-  "identity query"
-  ([v]
-   (constantly (constantly v))))
-
 ;;### Idea of acceptor
 ;; An acceptor is a function accepts k, v; it is the argument
 ;; of a query.
@@ -17,15 +12,19 @@
   [_ v]
   v)
 
+;;TODO change val-getter from 0-arity to 1-arity: data as the argument
 (defn pq
   "construct a general query:
     - `id` key of this query
     - `acceptor` default acceptor of this query, used when no acceptor specified when invoke
-    - `val-getter` is the function to extract data"
+    - `val-getter` is the function to extract data (k, v pair)"
   [id acceptor val-getter]
   (with-meta
-    (fn [accept]
-      ((or accept acceptor) id (val-getter)))
+    (fn accept-data 
+      ([data]
+       (accept-data nil data))
+      ([accept data]
+       (apply (or accept acceptor) (val-getter data))))
     {::id id ::acceptor acceptor}))
 
 (defn id 
@@ -36,18 +35,6 @@
 (defn acceptor
   [query]
   (some-> query meta ::acceptor))
-
-(defn run-query
-  "run a query `q` on `data`, returns the query result function.
-   
-   A query result function has one argument of acceptor, which is
-   another function takes k, v as arguments. The acceptor can be nil,
-   means that the query are free to construct the result."
-  [q data]
-  ((q data) nil))
-
-(comment
-  (run-query (term-query {:a 3}) {}))
 
 (defn accept
   "General acceptor function design: when k is nil, means there is no
@@ -86,25 +73,25 @@
   ([k]
    (fn-query k #(get % k)))
   ([k f]
-   (fn [data]
-     (when-not (associative? data)
-       (data-error! "associative(map) expected" k data))
-     (pq k map-acceptor #(f data)))))
+   (pq k map-acceptor
+       (fn [data]
+         (when-not (associative? data)
+           (data-error! "associative(map) expected" k data))
+         [k (f data)]))))
 
 (comment
-  (run-query (fn-query :a) {:a 3}))
+  ((fn-query :a) {:a 3}))
 
 (defn join-query
+  "returns a joined query: `q` queries in `parent-q`'s returned value"
   [parent-q q]
-  (fn [data]
-    (let [f-parent (parent-q data)
-          v        (f-parent val-acceptor)]
-      (pq (id f-parent) 
-          (acceptor f-parent)
-          #(when-not (nil? v) ((q v) nil))))))
+  (let [qid (id parent-q)]
+    (pq qid (acceptor parent-q)
+        (fn [data]
+          [qid (some-> (parent-q val-acceptor data) q)]))))
 
 (comment
-  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 1 :c 2}})
+  ((join-query (fn-query :a) (fn-query :b)) {:c 3})
   )
 
 ;; A vector query is a query collection as `queries`
@@ -112,51 +99,57 @@
   "returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
   [queries]
-  (fn [data]
-    (let [collector (transient [])
-          v (some->> queries
-                     (reduce (fn [acc q]
-                               ((q data)
-                                (comp
-                                 #(if (nil? %) (reduced nil)  %)
-                                 (partial accept conj! acc))))
-                             collector)
-                     (persistent!))]
-      (pq (map first v) val-acceptor #(into {} v)))))
+  (let [qid (map id queries)]
+    (pq qid val-acceptor
+        (fn [data]
+          (let [collector (transient [])
+                v (some->> queries
+                           (reduce (fn [acc q]
+                                     (q
+                                      (comp
+                                       #(if (nil? %) (reduced nil)  %)
+                                       (partial accept conj! acc))
+                                      data))
+                                   collector)
+                           (persistent!))]
+            [qid (into {} v)])))))
 
 (comment
-  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
+  ((vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
 
 (defn post-process-query
   "A query decorator post process its result"
   [child f-post-process]
-  (fn [data]
-    (let [child-q (child data)
-          [k v]   (some-> (child-q vector) (f-post-process))]
-      (pq k (acceptor child-q) (fn [] v)))))
+  (let [qid (id child)]
+    (pq qid (acceptor child)
+        (fn [data]
+          [qid (some-> (child vector data) (f-post-process) (second))]))))
 
 (defn filter-query
   "returns a filter query which will not appears in result data, but will
    void other query if in a vector query, `pred` is the filter condition"
   [q pred]
-  (let [pred (if (fn? pred) pred #(= pred %))]
-    (post-process-query q (fn [[k v]] [(when (pred v) k) nil]))))
+  (pq (id q) (acceptor q)
+      (fn [data]
+        (let [[k v] (q vector data)]
+          [(when (pred v) k) nil]))))
 
 (comment
-  (run-query (filter-query (fn-query :a) odd?) {:a 2}))
+  ((filter-query (fn-query :a) odd?) {:a 1}))
 
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
   "returns a seq-query which applies query `q` to data (must be a collection) and return"
-  ([qr]
-   (fn [data]
-     (when-not (sequential? data)
-       (data-error! "sequence expected" nil data))
-     (let [v (map #((qr %) nil) data)]
-       (pq (id qr) val-acceptor (fn [] v))))))
+  [q]
+  (let [qid (id q)]
+    (pq qid val-acceptor
+        (fn [data]
+          (when-not (sequential? data)
+            (data-error! "sequence expected" nil data))
+          [qid (map q data)]))))
 
 (comment
-  (run-query (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
+  ((seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
 (defn mk-named-var-query
   "returns a factory function which take a query `q` as its argument."
@@ -164,27 +157,28 @@
    (mk-named-var-query t-sym-table (atom :fresh) sym))
   ([t-sym-table status sym]
    (fn [qr]
-     (post-process-query
-      qr
-      (fn [[k v]]
-        (case @status
-          :fresh
-          (do
-            (assoc! t-sym-table sym v)
-            (reset! status :bound))
+     (pq
+      (id qr)
+      (acceptor qr)
+      (fn [data]
+        (let [[k v] (qr vector data)]
+          (case @status
+            :fresh
+            (do
+              (assoc! t-sym-table sym v)
+              (reset! status :bound))
 
-          :bound
-          (let [old-v (get t-sym-table sym ::not-found)]
-            (when (not= v old-v)
-              (dissoc! t-sym-table sym)
-              (reset! status :invalid)))
-
-          nil)
-        [(when (not= @status :invalid) k) v])))))
+            :bound
+            (let [old-v (get t-sym-table sym ::not-found)]
+              (when (not= v old-v)
+                (dissoc! t-sym-table sym)
+                (reset! status :invalid)))
+            nil)
+          [(when (not= @status :invalid) k) v]))))))
 
 (comment
   (let [a-sym-table (transient {})]
-    [(run-query ((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
+    [(((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
      (persistent! a-sym-table)]))
 
 (defn named-var-factory
@@ -205,7 +199,7 @@
     - named variable binding map"
   [f-query data]
   (let [[f-sym-table f-named-var] (named-var-factory)]
-    [(run-query (f-query f-named-var) data) (f-sym-table)]))
+    [((f-query f-named-var) data) (f-sym-table)]))
 
 ;;== post processors
 
