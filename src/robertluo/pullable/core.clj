@@ -219,6 +219,7 @@
   (assert-arg! (constantly false) arg))
 
 (defn decorate-query
+  "returns a query which is `q` decorated by options specified by `pp-pairs`."
   [q pp-pairs]
   (reduce
    (fn [acc [pp-type pp-value]]
@@ -227,6 +228,9 @@
       (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
+;;#### :when option
+;; Takes a pred function as its argument (:proc/val)
+;; when the return value not fullfil `pred`, it is not included in result.
 (defmethod apply-post :when
   [arg]
   (let [{pred :proc/val} arg]
@@ -234,11 +238,18 @@
     (fn [[k v]]
       [k (when (pred v) v)])))
 
+;;#### :not-found option
+;; Takes any value as its argument (:proc/val)
+;; When a value not found, it gets replaced by not-found value
 (defmethod apply-post :not-found
   [{:proc/keys [val]}]
   (fn [[k v]]
     [k (or v val)]))
 
+;;#### :with option
+;; Takes a vector of args as this option's argument (:proc/val)
+;; Requires value being a function, it applies the vector of args to it,
+;; returns the return value as query result.
 (defmethod apply-post :with
   [arg]
   (let [{args :proc/val} arg]
@@ -248,6 +259,10 @@
         (data-error! "value must be a function" k f))
       [k (apply f args)])))
 
+;;#### :batch option
+;; Takes a vector of vector of args as this options's argument. 
+;; Applible only for function value.
+;; query result will have a value of a vector of applying resturn value.
 (defmethod apply-post :batch
   [arg]
   (assert-arg! #(and (vector? %) (every? vector? %)) arg)
@@ -257,6 +272,11 @@
         (data-error! "value must be a function" k f))
       [k (map #(apply f %) args-vec)])))
 
+;;#### :seq option (Pagination)
+;; Takes a pair of numbers as this option's argument.
+;;  [:catn [:from :number] [:count :number]]
+;; Appliable only for seq query.
+;; query result has a value of a sequence of truncated sequence.
 (defmethod apply-post :seq
   [arg]
   (assert-arg! vector? arg)
