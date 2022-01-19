@@ -91,3 +91,20 @@
   (is (thrown? ExceptionInfo (sut/apply-post #:proc{:type :batch :val [3]})))
   (let [f (sut/apply-post #:proc{:type :batch :val [[3] [4]]})]
     (is (= [:a [4 5]] (f [:a inc])))))
+
+(deftest apply-post-watch
+  (is (thrown? ExceptionInfo (sut/apply-post #:proc{:type :watch :val 3})))
+  (testing "watch option registers a watcher on IRef, 
+            when watcher returns nil, it removes the watcher"
+    (let [a    (atom 1)
+          rslt (atom nil)
+          f    (fn [ov nv] (when nv (reset! rslt [ov nv])))
+          q    (sut/decorate-query (sut/fn-query :a) [[:watch f]])]
+      (is (thrown? ExceptionInfo (q {:a 3})))
+      (is (= {:a 1} (q {:a a})))
+      (reset! a 2)
+      (is (= [1 2] @rslt))
+      (reset! a false)
+      (is (= [1 2] @rslt))
+      (reset! a 3)
+      (is (= [1 2] @rslt)))))

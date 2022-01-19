@@ -28,13 +28,15 @@
   "Returns a query from `pattern`. A query can be used to
    pull from data structure later. "
   [pattern]
-  (fn [f-named-var]
-    (ptn/->query (pattern->query f-named-var) pattern)))
+  (with-meta
+    (fn [f-named-var]
+      (ptn/->query (pattern->query f-named-var) pattern))
+    {::compiled? true}))
 
 (defn run
   "Given `data`, run a query returned by `query` and returns the pull result."
   [pattern data]
-  (core/run-bind (if (fn? pattern) pattern (query pattern)) data))
+  (core/run-bind (if (some-> pattern meta ::compiled?) pattern (query pattern)) data))
 
 (comment
   (core/id (query '{:a ?}))

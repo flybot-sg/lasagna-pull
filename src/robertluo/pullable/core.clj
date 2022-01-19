@@ -12,7 +12,6 @@
   [_ v]
   v)
 
-;;TODO change val-getter from 0-arity to 1-arity: data as the argument
 (defn pq
   "construct a general query:
     - `id` key of this query
@@ -209,11 +208,18 @@
    k-v pair, returns the same shape of data"
   :proc/type)
 
+(defn assert-arg!
+  "an error that represent apply-post illegal argument"
+  [pred arg]
+  (when-not (pred (:proc/val arg))
+    (throw (ex-info "illegal argument" arg))))
+
 (defmethod apply-post :default
-  [_]
-  identity)
+  [arg]
+  (assert-arg! (constantly false) arg))
 
 (defn decorate-query
+  "returns a query which is `q` decorated by options specified by `pp-pairs`."
   [q pp-pairs]
   (reduce
    (fn [acc [pp-type pp-value]]
@@ -222,12 +228,9 @@
       (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
-(defn assert-arg!
-  "an error that represent apply-post illegal argument"
-  [pred arg]
-  (when-not (pred (:proc/val arg))
-    (throw (ex-info "illegal argument" arg))))
-
+;;#### :when option
+;; Takes a pred function as its argument (:proc/val)
+;; when the return value not fullfil `pred`, it is not included in result.
 (defmethod apply-post :when
   [arg]
   (let [{pred :proc/val} arg]
@@ -235,11 +238,18 @@
     (fn [[k v]]
       [k (when (pred v) v)])))
 
+;;#### :not-found option
+;; Takes any value as its argument (:proc/val)
+;; When a value not found, it gets replaced by not-found value
 (defmethod apply-post :not-found
   [{:proc/keys [val]}]
   (fn [[k v]]
     [k (or v val)]))
 
+;;#### :with option
+;; Takes a vector of args as this option's argument (:proc/val)
+;; Requires value being a function, it applies the vector of args to it,
+;; returns the return value as query result.
 (defmethod apply-post :with
   [arg]
   (let [{args :proc/val} arg]
@@ -249,6 +259,10 @@
         (data-error! "value must be a function" k f))
       [k (apply f args)])))
 
+;;#### :batch option
+;; Takes a vector of vector of args as this options's argument. 
+;; Applible only for function value.
+;; query result will have a value of a vector of applying resturn value.
 (defmethod apply-post :batch
   [arg]
   (assert-arg! #(and (vector? %) (every? vector? %)) arg)
@@ -258,6 +272,11 @@
         (data-error! "value must be a function" k f))
       [k (map #(apply f %) args-vec)])))
 
+;;#### :seq option (Pagination)
+;; Takes a pair of numbers as this option's argument.
+;;  [:catn [:from :number] [:count :number]]
+;; Appliable only for seq query.
+;; query result has a value of a sequence of truncated sequence.
 (defmethod apply-post :seq
   [arg]
   (assert-arg! vector? arg)
@@ -268,3 +287,27 @@
       (when-not (seqable? v)
         (data-error! "seq option can only be used on sequences" k v))
       [k (->> v (drop from) (take cnt))])))
+
+;;#### :watch option
+;; Takes an function as the argument (:proc/val): 
+;;    [:=> [:catn [:old-value :any] [:new-value :any]] :any]
+;; returns `nil` when your do want to watch it anymore.
+;; Can watch on a IRef value
+
+(def watchable?
+  "pred if `x` is watchable"
+  (partial instance? clojure.lang.IRef))
+
+(defmethod apply-post :watch
+  [arg]
+  (assert-arg! fn? arg)
+  (let [f       (:proc/val arg)
+        w-k     ::watch
+        watcher (fn [_ watched old-value new-value]
+                  (when (nil? (f old-value new-value))
+                    (remove-watch watched w-k)))]
+    (fn [[k v]]
+      (when-not (watchable? v)
+        (data-error! "watch option can only apply to an watchable value" k v))
+      (add-watch v w-k watcher)
+      [k @v])))
