@@ -53,6 +53,10 @@
     '{:a ?a}
     [{:a 1} {'?a 1}]
 
+    ;;named variable join
+    {:a 2 :b 3}      '{:a ?x :b ?x} [{} {}]
+
+
     ;;named join
     {:a 1 :b 1}
     '{:a ?a :b ?a}

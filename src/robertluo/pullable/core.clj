@@ -189,7 +189,9 @@
     [#(persistent! t-sym-table)
      (fn [sym]
        (or (get @a-cx-named sym)
-           (mk-named-var-query t-sym-table sym)))]))
+           (let [qf (mk-named-var-query t-sym-table sym)]
+             (swap! a-cx-named assoc sym qf)
+             qf)))]))
 
 (defn run-bind
   "`f-query` takes a function (returned by `named-var-factory`) as argument,

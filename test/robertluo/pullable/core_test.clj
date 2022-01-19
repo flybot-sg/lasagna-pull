@@ -71,7 +71,7 @@
       {'a 1} :bound    [{:a 1} {'a 1}]
       ;;variable invalided by some query
       {}     :invalid  [nil {}]
-      ;;variable different from bounded value
+      ;;variable different from bound value
       {'a 2} :bound    [nil {}]
       )))
 
