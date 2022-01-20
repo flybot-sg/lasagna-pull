@@ -1,22 +1,23 @@
 (ns robertluo.pullable.pattern
-  "Pull pattern definition")
-
-;;== pattern
+  "Pull pattern definition.")
 
 (defn pattern-error!
+  "Throws an error indicates pattern error."
   [reason pattern]
   (throw (ex-info reason {:pattern pattern})))
 
 (defn lvar?
-  "predict if `x` is a logical variable, i.e, starts with `?` and has a name,
+  "Predicts if `x` is a logical variable, i.e, starts with `?` and has a name,
      - ?a is a logic variable
      - ? is not"
   [v]
   (and (symbol? v) (re-matches #"\?.+" (name v))))
 
+;; Query construct function
+;; This is independent to query design by using function `f`.
 ;;FIXME use trampoline to protect stack
 (defn ->query
-  "compile `pattern` by applying query creation function `f` to it."
+  "Compiles `pattern` by applying query creation function `f` to it."
   [f pattern]
   (letfn [(apply-opts
            [qr opts]
