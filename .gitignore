@@ -5,3 +5,4 @@ target/
 .clj-kondo/
 .lsp/
 .calva/
+docs/

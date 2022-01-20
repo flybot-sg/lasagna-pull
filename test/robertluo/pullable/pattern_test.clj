@@ -1,9 +1,14 @@
 (ns robertluo.pullable.pattern-test
   (:require
    [robertluo.pullable.pattern :as sut]
-   [clojure.test :refer [deftest are]]))
+   [clojure.test :refer [deftest are testing is]])
+  (:import
+   [clojure.lang ExceptionInfo]))
 
 (deftest ->query
+  (testing "If pattern is wrong, ->query can complain"
+    (is (thrown? ExceptionInfo (sut/->query identity 3)))
+    (is (thrown? ExceptionInfo (sut/->query identity '[{:a 3} :with [3]]))))
   (are [m exp] (= exp (sut/->query #(concat % [:ok]) m))
     '{:a ?}                 [:vec [[:fn :a :ok]] :ok]
     '{:a ? :b ?}            [:vec [[:fn :a :ok] [:fn :b :ok]] :ok]

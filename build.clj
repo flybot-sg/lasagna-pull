@@ -1,15 +1,25 @@
 (ns build
   "Build script for this project"
   (:require [clojure.tools.build.api :as b]
-            [org.corfield.build :as cb]))
+            [org.corfield.build :as cb]
+            [marginalia.main :as marg]))
 
 (def lib 'robertluo/pullable)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
 (def url "https://github.com/robertluo/pullable")
 
-(defn tests
-  [opts]
-  (cb/run-tests opts))
+(defn source-files
+  [dir]
+  (->> (file-seq (java.io.File. dir))
+       (map str)
+       (filter #(re-matches #".*?\.clj.?+" %))
+       (map #(str "./" %))))
+
+(defn docs
+  "Produce source documentations."
+  [_]
+  (cb/clean {:target "docs"})
+  (apply marg/-main (source-files "src")))
 
 (defn ci
   [opts]
