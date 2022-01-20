@@ -3,37 +3,21 @@
    
    A query is a function which can extract k v from data.")
 
-;;### Idea of acceptor
+;;## Idea of acceptor
 ;; An acceptor is a function accepts k, v; it is the argument
 ;; of a query.
+;; [:=> [:catn [:k :any] [:v :any]] :any]
+;;
+;; ### Why do we need acceptor?
+;; If a query is in a parent query context, it might want to have the 
+;; resulting data in a shape which is different from the default 
+;; context. Passing a acceptor function to a query can do it. If not,
+;; a query uses its default acceptor function.
 
 (defn val-acceptor
-  "identity acceptor, ignore k, only return `v`"
+  "Identity acceptor, ignore k, only return `v`."
   [_ v]
   v)
-
-(defn pq
-  "construct a general query:
-    - `id` key of this query
-    - `acceptor` default acceptor of this query, used when no acceptor specified when invoke
-    - `val-getter` is the function to extract data (k, v pair)"
-  [id acceptor val-getter]
-  (with-meta
-    (fn accept-data 
-      ([data]
-       (accept-data nil data))
-      ([accept data]
-       (apply (or accept acceptor) (val-getter data))))
-    {::id id ::acceptor acceptor}))
-
-(defn id 
-  "returns id of a query"
-  [query]
-  (some-> query meta ::id))
-
-(defn acceptor
-  [query]
-  (some-> query meta ::acceptor))
 
 (defn accept
   "General acceptor function design: when k is nil, means there is no
@@ -60,15 +44,45 @@
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
+;;## Query definition
+
+(defn pq
+  "Construct a general query:  
+    - `id` key of this query
+    - `acceptor` default acceptor of this query, used when no acceptor specified when invoke.
+         [:=> [:catn [:k :any] [:v :any]] :any]
+    - `val-getter` is the function to extract data (k, v pair).
+         [:=> [:catn [:kv [:any :any]]] [:any :any]]
+   "
+  [id acceptor val-getter]
+  (with-meta
+    (fn accept-data 
+      ([data]
+       (accept-data nil data))
+      ([accept data]
+       (apply (or accept acceptor) (val-getter data))))
+    {::id id ::acceptor acceptor}))
+
+(defn id 
+  "Returns id of a query."
+  [query]
+  (some-> query meta ::id))
+
+(defn acceptor
+  "Returns default acceptor of a query."
+  [query]
+  (some-> query meta ::acceptor))
+
 (defn data-error!
-  "throw an exception specify data error"
+  "Throws an exception specify data error."
   [reason k data]
   (throw (ex-info reason {:k k :data data})))
 
+;; ### fn-query or simple query
+;; Simplest form of a query
 ;;FIXME stack consuming
 (defn fn-query
-  "returns a simple query has key as `k`, `f` to return a value from a map,
-   and `child` query to execute if matches."
+  "Returns a simple query has key as `k`, `f` to return a value from a map."
   ([k]
    (fn-query k #(get % k)))
   ([k f]
@@ -81,8 +95,11 @@
 (comment
   ((fn-query :a) {:a 3}))
 
+;;### join-query
+;; Joins two queries altogether
+
 (defn join-query
-  "returns a joined query: `q` queries in `parent-q`'s returned value"
+  "Returns a joined query: `q` queries in `parent-q`'s returned value."
   [parent-q q]
   (let [qid (id parent-q)]
     (pq qid (acceptor parent-q)
@@ -93,9 +110,10 @@
   ((join-query (fn-query :a) (fn-query :b)) {:c 3})
   )
 
+;; ### vector-query
 ;; A vector query is a query collection as `queries`
 (defn vector-query
-  "returns a vector query, takes other `queries` as its children,
+  "Returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
   [queries]
   (let [qid (map id queries)]
@@ -116,17 +134,10 @@
 (comment
   ((vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
 
-(defn post-process-query
-  "A query decorator post process its result"
-  [child f-post-process]
-  (let [qid (id child)]
-    (pq qid (acceptor child)
-        (fn [data]
-          [qid (some-> (child vector data) (f-post-process) (second))]))))
-
+;;### filter query
 (defn filter-query
-  "returns a filter query which will not appears in result data, but will
-   void other query if in a vector query, `pred` is the filter condition"
+  "Returns a filter query which will not appears in result data, but will
+   void other query if in a vector query, `pred` is the filter condition."
   [q pred]
   (pq (id q) (acceptor q)
       (fn [data]
@@ -136,9 +147,10 @@
 (comment
   ((filter-query (fn-query :a) odd?) {:a 1}))
 
+;;### seq query
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
-  "returns a seq-query which applies query `q` to data (must be a collection) and return"
+  "Returns a seq-query which applies query `q` to data (must be a collection) and return."
   [q]
   (let [qid (id q)]
     (pq qid val-acceptor
@@ -150,17 +162,31 @@
 (comment
   ((seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
+;;### post-process-query
+;; It is common to process data after it matches.
+(defn post-process-query
+  "A query decorator post process its result. Given query `child`, the function
+   `f-post-process` may change its value and return.
+      - child: a query
+      - f-post-process: [:=> [:kv-pair] :any]"
+  [child f-post-process]
+  (let [qid (id child)]
+    (pq qid (acceptor child)
+        (fn [data]
+          [qid (some-> (child vector data) (f-post-process) (second))]))))
+
+;;### Logical variable support
 (defn mk-named-var-query
-  "returns a factory function which take a query `q` as its argument."
+  "Returns a factory function which take a query `q` as its argument."
   ([t-sym-table sym]
    (mk-named-var-query t-sym-table (atom :fresh) sym))
   ([t-sym-table status sym]
-   (fn [qr]
+   (fn [q]
      (pq
-      (id qr)
-      (acceptor qr)
+      (id q)
+      (acceptor q)
       (fn [data]
-        (let [[k v] (qr vector data)]
+        (let [[k v] (q vector data)]
           (case @status
             :fresh
             (do
@@ -181,7 +207,7 @@
      (persistent! a-sym-table)]))
 
 (defn named-var-factory
-  "returns a function takes a symbol as the argument, returns a named-var-query"
+  "Returns a function takes a symbol as the argument, returns a named-var-query."
   []
   (let [t-sym-table (transient {})
         ;;cache for created named variable factory
@@ -202,7 +228,7 @@
   (let [[f-sym-table f-named-var] (named-var-factory)]
     [((f-query f-named-var) data) (f-sym-table)]))
 
-;;== post processors
+;;## Post processors
 
 ;; Post processors apply after a query, abbreciate to `pp`
 (defmulti apply-post
@@ -211,7 +237,7 @@
   :proc/type)
 
 (defn assert-arg!
-  "an error that represent apply-post illegal argument"
+  "An error that represent apply-post illegal argument."
   [pred arg]
   (when-not (pred (:proc/val arg))
     (throw (ex-info "illegal argument" arg))))
@@ -221,7 +247,7 @@
   (assert-arg! (constantly false) arg))
 
 (defn decorate-query
-  "returns a query which is `q` decorated by options specified by `pp-pairs`."
+  "Returns a query which is `q` decorated by options specified by `pp-pairs`."
   [q pp-pairs]
   (reduce
    (fn [acc [pp-type pp-value]]
@@ -230,7 +256,7 @@
       (apply-post #:proc{:type pp-type :val pp-value})))
    q pp-pairs))
 
-;;#### :when option
+;;### :when option
 ;; Takes a pred function as its argument (:proc/val)
 ;; when the return value not fullfil `pred`, it is not included in result.
 (defmethod apply-post :when
@@ -240,7 +266,7 @@
     (fn [[k v]]
       [k (when (pred v) v)])))
 
-;;#### :not-found option
+;;### :not-found option
 ;; Takes any value as its argument (:proc/val)
 ;; When a value not found, it gets replaced by not-found value
 (defmethod apply-post :not-found
@@ -248,7 +274,7 @@
   (fn [[k v]]
     [k (or v val)]))
 
-;;#### :with option
+;;### :with option
 ;; Takes a vector of args as this option's argument (:proc/val)
 ;; Requires value being a function, it applies the vector of args to it,
 ;; returns the return value as query result.
@@ -261,7 +287,7 @@
         (data-error! "value must be a function" k f))
       [k (apply f args)])))
 
-;;#### :batch option
+;;### :batch option
 ;; Takes a vector of vector of args as this options's argument. 
 ;; Applible only for function value.
 ;; query result will have a value of a vector of applying resturn value.
@@ -274,7 +300,7 @@
         (data-error! "value must be a function" k f))
       [k (map #(apply f %) args-vec)])))
 
-;;#### :seq option (Pagination)
+;;### :seq option (Pagination)
 ;; Takes a pair of numbers as this option's argument.
 ;;  [:catn [:from :number] [:count :number]]
 ;; Appliable only for seq query.
@@ -290,12 +316,11 @@
         (data-error! "seq option can only be used on sequences" k v))
       [k (->> v (drop from) (take cnt))])))
 
-;;#### :watch option
+;;### :watch option
 ;; Takes an function as the argument (:proc/val): 
 ;;    [:=> [:catn [:old-value :any] [:new-value :any]] :any]
 ;; returns `nil` when your do want to watch it anymore.
 ;; Can watch on a IRef value
-
 (def watchable?
   "pred if `x` is watchable"
   (partial instance? clojure.lang.IRef))

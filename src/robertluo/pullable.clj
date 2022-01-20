@@ -63,9 +63,15 @@
     {::compiled? true}))
 
 (defn run
-  "Given `data`, run a query returned by `query` and returns the pull result."
-  [pattern data]
-  (core/run-bind (if (some-> pattern meta ::compiled?) pattern (query pattern)) data))
+  "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
+   Returns a vector of matching result (same structure as data) and a map of logical
+   variable bindings."
+  [query-or-pattern data]
+  (core/run-bind 
+   (if (some-> query-or-pattern meta ::compiled?)
+     query-or-pattern 
+     (query query-or-pattern)) 
+   data))
 
 (comment
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
