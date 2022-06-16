@@ -19,9 +19,10 @@
        (= license-lines)))
 
 (defn prepend-license-lines [f]
-  (let [lines (->> (interleave license-lines (repeat "\n")) (apply str))]
-    (->> (str lines (slurp f))
-         (spit (.getName f)))))
+  (let [lines (->> (interleave license-lines (repeat "\n")) (apply str))
+        content (str lines (slurp f))]
+    (with-open [wtr (io/writer f)]
+      (.write wtr content))))
 
 (defn main []
   (doseq [f (clojure-files "src")]
