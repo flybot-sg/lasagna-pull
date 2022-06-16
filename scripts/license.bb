@@ -1,3 +1,5 @@
+#!/usr/bin/env bb
+
 ; A naive script to prepend license lines to source files
 
 (require '[clojure.java.io :as io])
@@ -24,6 +26,7 @@
 (defn main []
   (doseq [f (clojure-files "src")]
     (when-not (licensed? f)
+      (println "Working on: " (.getName f))
       (prepend-license-lines f))))
 
 (comment
@@ -32,3 +35,5 @@
   (prepend-license-lines (io/file "bb.edn"))
   (main)
   )
+
+(main)
