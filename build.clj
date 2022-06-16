@@ -4,7 +4,7 @@
             [org.corfield.build :as cb]
             [marginalia.main :as marg]))
 
-(def lib 'robertluo/pullable)
+(def lib 'robertluo/lasagna-pull)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
 (def url "https://github.com/robertluo/pullable")
 

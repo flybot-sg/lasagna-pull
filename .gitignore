@@ -6,3 +6,4 @@ target/
 .lsp/
 .calva/
 docs/
+.portal/
