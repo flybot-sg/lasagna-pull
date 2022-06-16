@@ -4,7 +4,7 @@
 
 (require '[clojure.java.io :as io])
 
-(def license-lines ["; Copyright. 2022, Flybot Pte. Ltd." 
+(def license-lines ["; Copyright 2022, Flybot Pte. Ltd." 
                     "; Apache License 2.0, http://www.apache.org/licenses/"
                     ""])
 

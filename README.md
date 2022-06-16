@@ -113,4 +113,5 @@ Apply to sequence value of a query, useful for pagination:
 ```
 
 ## License
-Copyright © 2020 Robertluo
+Copyright. © 2022 Flybot Pte. Ltd.
+Apache License 2.0, http://www.apache.org/licenses/
