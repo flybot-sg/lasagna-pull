@@ -1,8 +1,8 @@
 # Pullable, precisely select from deep data structure.
-![CI](https://github.com/robertluo/pullable/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/robertluo/pullable/branch/master/graph/badge.svg)](https://codecov.io/gh/robertluo/pullable)
-[![Clojars Project](https://img.shields.io/clojars/v/robertluo/pullable.svg)](https://clojars.org/robertluo/pullable)
-[![Cljdoc](https://cljdoc.org/badge/robertluo/pullable)](https://cljdoc.org/d/robertluo/pullable)
+![CI](https://github.com/flybot-sg/pullable/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/flybot-sg/pullable/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/pullable)
+[![Clojars Project](https://img.shields.io/clojars/v/flybot/pullable.svg)](https://clojars.org/flybot/pullable)
+[![Cljdoc](https://cljdoc.org/badge/flybot/pullable)](https://cljdoc.org/d/flybot/pullable)
 
 ## Rational
 

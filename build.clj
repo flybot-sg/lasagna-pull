@@ -4,9 +4,9 @@
             [org.corfield.build :as cb]
             [marginalia.main :as marg]))
 
-(def lib 'robertluo/lasagna-pull)
+(def lib 'flybot/lasagna-pull)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
-(def url "https://github.com/robertluo/pullable")
+(def url "https://github.com/flybot-sg/pullable")
 
 (defn source-files
   [dir]
