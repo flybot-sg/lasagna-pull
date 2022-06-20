@@ -6,7 +6,7 @@
 
 (def lib 'flybot/lasagna-pull)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
-(def url "https://github.com/flybot-sg/pullable")
+(def url "https://github.com/flybot-sg/lasagna-pull")
 
 (defn source-files
   [dir]

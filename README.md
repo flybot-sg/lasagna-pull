@@ -1,8 +1,8 @@
 # Pullable, precisely select from deep data structure.
-![CI](https://github.com/flybot-sg/pullable/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/flybot-sg/pullable/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/pullable)
-[![Clojars Project](https://img.shields.io/clojars/v/flybot/pullable.svg)](https://clojars.org/flybot/pullable)
-[![Cljdoc](https://cljdoc.org/badge/flybot/pullable)](https://cljdoc.org/d/flybot/pullable)
+![CI](https://github.com/flybot-sg/lasagna-pull/workflows/CI/badge.svg)
+[![codecov](https://codecov.io/gh/flybot-sg/lasagna-pull/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/lasagna-pull)
+[![Clojars Project](https://img.shields.io/clojars/v/flybot/lasagna-pull.svg)](https://clojars.org/flybot/lasagna-pull)
+[![Cljdoc](https://cljdoc.org/badge/flybot/lasagna-pull)](https://cljdoc.org/d/flybot/lasagna-pull)
 
 ## Rational
 
