@@ -4,7 +4,7 @@
             [org.corfield.build :as cb]
             [marginalia.main :as marg]))
 
-(def lib 'flybot/lasagna-pull)
+(def lib 'flybot-sg/lasagna-pull)
 (def version (format "0.3.%s" (b/git-count-revs nil)))
 (def url "https://github.com/flybot-sg/lasagna-pull")
 
