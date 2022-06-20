@@ -1,15 +1,14 @@
 ; Copyright. 2022, Flybot Pte. Ltd.
 ; Apache License 2.0, http://www.apache.org/licenses/
 
-(ns robertluo.pullable
+(ns flybot.pullable
   "Pull from data structure by using pattern.
    
    Pattern is a DSL in clojure data structure, specify how to extract
    information from data."
   (:require
-   [robertluo.pullable 
-    [core :as core]
-    [pattern :as ptn]]))
+   [flybot.pullable.core :as core]
+   [flybot.pullable.pattern :as ptn]))
 
 ;;## Glue code 
 

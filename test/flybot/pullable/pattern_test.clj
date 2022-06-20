@@ -1,6 +1,6 @@
-(ns robertluo.pullable.pattern-test
+(ns flybot.pullable.pattern-test
   (:require
-   [robertluo.pullable.pattern :as sut]
+   [flybot.pullable.pattern :as sut]
    [clojure.test :refer [deftest are testing is]])
   (:import
    [clojure.lang ExceptionInfo]))
