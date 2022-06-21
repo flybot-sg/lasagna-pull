@@ -1,5 +1,5 @@
-(ns flybot.pullable.core-test
-  (:require [flybot.pullable.core :as sut]
+(ns sg.flybot.pullable.core-test
+  (:require [sg.flybot.pullable.core :as sut]
             [clojure.test :refer [deftest is testing are]])
   (:import [clojure.lang ExceptionInfo]))
 

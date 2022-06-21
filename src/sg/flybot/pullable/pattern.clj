@@ -1,7 +1,7 @@
 ; Copyright. 2022, Flybot Pte. Ltd.
 ; Apache License 2.0, http://www.apache.org/licenses/
 
-(ns flybot.pullable.pattern
+(ns sg.flybot.pullable.pattern
   "Pull pattern definition.")
 
 (defn pattern-error!
