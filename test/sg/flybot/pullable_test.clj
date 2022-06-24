@@ -1,11 +1,29 @@
 (ns sg.flybot.pullable-test
   (:require
    [sg.flybot.pullable :as sut]
-   [clojure.test :refer [deftest are testing is]]))
+   [clojure.test :refer [deftest are testing is]])
+  (:import [clojure.lang ExceptionInfo]))
 
 (deftest query
   (testing "`query` can precompile and run"
     (is (= [{:a 1} {}] (sut/run (sut/query '{:a ?}) {:a 1})))))
+
+(deftest compile-query 
+  (let [query (sut/query ::pattern)]
+    (testing "query provided: just returns it."
+      (is (= query (sut/compile-query query))))
+    (testing "pattern provided: runs it and returns the query."
+      (is (-> (sut/compile-query ::pattern) meta ::sut/compiled?)))))
+
+(deftest validate-data
+  (testing "The data complies to schema so returns data."
+    (let [data [{:a "foo"} {}]
+          schema [:map [:a :string]]]
+      (is (= data (sut/validate-data data schema)))))
+  (testing "The data does not comply to schema so throws error."
+    (let [data [{:a "foo"} {}]
+          schema [:map [:a :int]]]
+      (is (thrown? ExceptionInfo (sut/validate-data data schema))))))
 
 (deftest ^:integrated run
   (are [data x exp] (= exp (sut/run x data))

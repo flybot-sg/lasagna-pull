@@ -8,7 +8,9 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]))
+   [sg.flybot.pullable.pattern :as ptn]
+   [malli.core :as m]
+   [malli.error :as me]))
 
 ;;## Glue code 
 
@@ -64,16 +66,39 @@
       (ptn/->query (pattern->query f-named-var) pattern))
     {::compiled? true}))
 
+(defn compile-query
+  "If `query-or-pattern` is a pattern such as '{:a ?}, runs it to get the query,
+   If it is a query such as (query '{:a ?}), returns it."
+  [query-or-pattern]
+  (if (some-> query-or-pattern meta ::compiled?)
+    query-or-pattern
+    (query query-or-pattern)))
+
+(defn validate-data
+  "Runs the pulled-data against a `malli` schema.
+   Returns the pulled-data if it respects the schema, else throws error."
+  [pulled-data schema]
+  (if schema
+    (let [validator (m/validator schema)
+          data (first pulled-data)]
+      (if (validator data)
+        pulled-data
+        (throw
+         (let [err (m/explain schema data)]
+           (ex-info (str (me/humanize err))
+                    {:data pulled-data :error err})))))
+    pulled-data))
+
 (defn run
-  "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
+  "Given `data`, compile `pattern` if it has not been, run it, validate it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings."
-  [query-or-pattern data]
-  (core/run-bind 
-   (if (some-> query-or-pattern meta ::compiled?)
-     query-or-pattern 
-     (query query-or-pattern)) 
-   data))
+  ([query-or-pattern data]
+   (run query-or-pattern data nil))
+  ([query-or-pattern data schema]
+   (-> (compile-query query-or-pattern)
+       (core/run-bind data)
+       (validate-data schema))))
 
 (comment
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
