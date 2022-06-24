@@ -3,7 +3,8 @@
  {}
  :aliases
  {:dev
-  {:extra-paths ["test"]}
+  {:extra-paths ["test"]
+   :extra-deps {djblue/portal {:mvn/version "0.27.0"}}}
   :test
   {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.60.977"}
                 lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}}

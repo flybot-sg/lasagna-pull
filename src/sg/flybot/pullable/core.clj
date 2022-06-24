@@ -49,6 +49,29 @@
 
 ;;## Query definition
 
+(defprotocol DataQuery
+  "Query"
+  (-id [query] "returns the id")
+  (-acceptor
+   [query]
+   "returns the acceptor, which is a function to `accept` data.")
+  (-accept-data
+   [query f-accept data]
+   "accept data, f-accept is optional, to replace default acceptor"))
+
+(defn run-q
+  "Run a query on its default acceptor"
+  [q data]
+  (-accept-data q nil data))
+
+(deftype GenericDataQuery [id acceptor val-getter]
+  DataQuery
+  (-id [_] id)
+  (-acceptor [_] acceptor)
+  (-accept-data
+   [_ f-accept data]
+   (apply (or f-accept acceptor) (val-getter data))))
+
 (defn pq
   "Construct a general query:  
     - `id` key of this query
@@ -58,23 +81,7 @@
          [:=> [:catn [:kv [:any :any]]] [:any :any]]
    "
   [id acceptor val-getter]
-  (with-meta
-    (fn accept-data 
-      ([data]
-       (accept-data nil data))
-      ([accept data]
-       (apply (or accept acceptor) (val-getter data))))
-    {::id id ::acceptor acceptor}))
-
-(defn id 
-  "Returns id of a query."
-  [query]
-  (some-> query meta ::id))
-
-(defn acceptor
-  "Returns default acceptor of a query."
-  [query]
-  (some-> query meta ::acceptor))
+  (->GenericDataQuery id acceptor val-getter))
 
 (defn data-error!
   "Throws an exception specify data error."
@@ -96,7 +103,7 @@
          [k (f data)]))))
 
 (comment
-  ((fn-query :a) {:a 3}))
+  (run-q (fn-query :a) {:a 3}))
 
 ;;### join-query
 ;; Joins two queries altogether
@@ -104,13 +111,14 @@
 (defn join-query
   "Returns a joined query: `q` queries in `parent-q`'s returned value."
   [parent-q q]
-  (let [qid (id parent-q)]
-    (pq qid (acceptor parent-q)
+  (let [qid (-id parent-q)]
+    (pq qid (-acceptor parent-q)
         (fn [data]
-          [qid (some-> (parent-q val-acceptor data) q)]))))
+          [qid (when-let [pd (-accept-data parent-q val-acceptor data)]
+                 (-accept-data q nil pd))]))))
 
 (comment
-  ((join-query (fn-query :a) (fn-query :b)) {:c 3})
+  (-accept-data (join-query (fn-query :a) (fn-query :b)) nil {:a {:b 1}})
   )
 
 ;; ### vector-query
@@ -119,13 +127,13 @@
   "Returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
   [queries]
-  (let [qid (map id queries)]
+  (let [qid (map -id queries)]
     (pq qid val-acceptor
         (fn [data]
           (let [collector (transient [])
                 v (some->> queries
                            (reduce (fn [acc q]
-                                     (q
+                                     (-accept-data q
                                       (comp
                                        #(if (nil? %) (reduced nil)  %)
                                        (partial accept conj! acc))
@@ -135,35 +143,35 @@
             [qid (into {} v)])))))
 
 (comment
-  ((vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
+  (-accept-data (vector-query [(fn-query :a) (fn-query :b)]) nil {:a 3 :b 5 :c 7}))
 
 ;;### filter query
 (defn filter-query
   "Returns a filter query which will not appears in result data, but will
    void other query if in a vector query, `pred` is the filter condition."
   [q pred]
-  (pq (id q) (acceptor q)
+  (pq (-id q) (-acceptor q)
       (fn [data]
-        (let [[k v] (q vector data)]
+        (let [[k v] (-accept-data q vector data)]
           [(when (pred v) k) nil]))))
 
 (comment
-  ((filter-query (fn-query :a) odd?) {:a 1}))
+  (-accept-data (filter-query (fn-query :a) odd?) nil {:a 1}))
 
 ;;### seq query
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
   "Returns a seq-query which applies query `q` to data (must be a collection) and return."
   [q]
-  (let [qid (id q)]
+  (let [qid (-id q)]
     (pq qid val-acceptor
         (fn [data]
           (when-not (sequential? data)
             (data-error! "sequence expected" nil data))
-          [qid (map q data)]))))
+          [qid (map #(-accept-data q nil %) data)]))))
 
 (comment
-  ((seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
+  (-accept-data (seq-query (vector-query [(fn-query :a) (fn-query :b)])) nil [{:a 3 :b 4} {:a 5} {}]))
 
 ;;### post-process-query
 ;; It is common to process data after it matches.
@@ -173,10 +181,10 @@
       - child: a query
       - f-post-process: [:=> [:kv-pair] :any]"
   [child f-post-process]
-  (let [qid (id child)]
-    (pq qid (acceptor child)
+  (let [qid (-id child)]
+    (pq qid (-acceptor child)
         (fn [data]
-          [qid (some-> (child vector data) (f-post-process) (second))]))))
+          [qid (some-> (-accept-data child vector data) (f-post-process) (second))]))))
 
 ;;### Logical variable support
 (defn mk-named-var-query
@@ -186,10 +194,10 @@
   ([t-sym-table status sym]
    (fn [q]
      (pq
-      (id q)
-      (acceptor q)
+      (-id q)
+      (-acceptor q)
       (fn [data]
-        (let [[k v] (q vector data)]
+        (let [[k v] (-accept-data q vector data)]
           (case @status
             :fresh
             (do
@@ -206,7 +214,7 @@
 
 (comment
   (let [a-sym-table (transient {})]
-    [(((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
+    [(run-q ((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
      (persistent! a-sym-table)]))
 
 (defn named-var-factory
@@ -229,7 +237,7 @@
     - named variable binding map"
   [f-query data]
   (let [[f-sym-table f-named-var] (named-var-factory)]
-    [((f-query f-named-var) data) (f-sym-table)]))
+    [(run-q (f-query f-named-var) data) (f-sym-table)]))
 
 ;;## Post processors
 
