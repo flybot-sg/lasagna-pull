@@ -55,19 +55,29 @@
   (-acceptor
    [query]
    "returns the acceptor, which is a function to `accept` data.")
+  (-context
+   [query]
+   "returns the context of the query")
   (-accept-data
    [query f-accept data]
    "accept data, f-accept is optional, to replace default acceptor"))
 
+(defn query?
+  [x]
+  (satisfies? DataQuery x))
+
 (defn run-q
   "Run a query on its default acceptor"
-  [q data]
-  (-accept-data q nil data))
+  ([q data]
+   (run-q q nil data))
+  ([q f-accept data]
+   (-accept-data q f-accept data)))
 
-(deftype GenericDataQuery [id acceptor val-getter]
+(deftype GenericDataQuery [id acceptor val-getter ctx]
   DataQuery
   (-id [_] id)
   (-acceptor [_] acceptor)
+  (-context [_] ctx)
   (-accept-data
    [_ f-accept data]
    (apply (or f-accept acceptor) (val-getter data))))
@@ -80,8 +90,8 @@
     - `val-getter` is the function to extract data (k, v pair).
          [:=> [:catn [:kv [:any :any]]] [:any :any]]
    "
-  [id acceptor val-getter]
-  (->GenericDataQuery id acceptor val-getter))
+  [id acceptor val-getter ctx]
+  (->GenericDataQuery id acceptor val-getter ctx))
 
 (defn data-error!
   "Throws an exception specify data error."
@@ -94,13 +104,16 @@
 (defn fn-query
   "Returns a simple query has key as `k`, `f` to return a value from a map."
   ([k]
-   (fn-query k #(get % k)))
-  ([k f]
+   (fn-query k nil))
+  ([k ctx]
+   (fn-query k #(get % k) ctx)) 
+  ([k f ctx]
    (pq k map-acceptor
        (fn [data]
          (when-not (associative? data)
            (data-error! "associative(map) expected" k data))
-         [k (f data)]))))
+         [k (f data)])
+       ctx)))
 
 (comment
   (run-q (fn-query :a) {:a 3}))
@@ -110,15 +123,18 @@
 
 (defn join-query
   "Returns a joined query: `q` queries in `parent-q`'s returned value."
-  [parent-q q]
-  (let [qid (-id parent-q)]
-    (pq qid (-acceptor parent-q)
-        (fn [data]
-          [qid (when-let [pd (-accept-data parent-q val-acceptor data)]
-                 (-accept-data q nil pd))]))))
+  ([parent-q q]
+   (join-query parent-q q nil))
+  ([parent-q q ctx]
+   (let [qid (-id parent-q)]
+     (pq qid (-acceptor parent-q)
+         (fn [data]
+           [qid (when-let [pd (run-q parent-q val-acceptor data)]
+                  (run-q q pd))])
+         ctx))))
 
 (comment
-  (-accept-data (join-query (fn-query :a) (fn-query :b)) nil {:a {:b 1}})
+  (run-q (join-query (fn-query :a) (fn-query :b)) {:a {:b 1}})
   )
 
 ;; ### vector-query
@@ -126,52 +142,61 @@
 (defn vector-query
   "Returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
-  [queries]
-  (let [qid (map -id queries)]
-    (pq qid val-acceptor
-        (fn [data]
-          (let [collector (transient [])
-                v (some->> queries
-                           (reduce (fn [acc q]
-                                     (-accept-data q
-                                      (comp
-                                       #(if (nil? %) (reduced nil)  %)
-                                       (partial accept conj! acc))
-                                      data))
-                                   collector)
-                           (persistent!))]
-            [qid (into {} v)])))))
+  ([queries]
+   (vector-query queries nil))
+  ([queries ctx]
+   (let [qid (map -id queries)]
+     (pq qid val-acceptor
+         (fn [data]
+           (let [collector (transient [])
+                 v (some->> queries
+                            (reduce (fn [acc q]
+                                      (run-q q
+                                             (comp
+                                              #(if (nil? %) (reduced nil)  %)
+                                              (partial accept conj! acc))
+                                             data))
+                                    collector)
+                            (persistent!))]
+             [qid (into {} v)]))
+         ctx))))
 
 (comment
-  (-accept-data (vector-query [(fn-query :a) (fn-query :b)]) nil {:a 3 :b 5 :c 7}))
+  (run-q (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 5 :c 7}))
 
 ;;### filter query
 (defn filter-query
   "Returns a filter query which will not appears in result data, but will
    void other query if in a vector query, `pred` is the filter condition."
-  [q pred]
-  (pq (-id q) (-acceptor q)
-      (fn [data]
-        (let [[k v] (-accept-data q vector data)]
-          [(when (pred v) k) nil]))))
+  ([q pred]
+   (filter-query q pred nil))
+  ([q pred ctx]
+   (pq (-id q) (-acceptor q)
+       (fn [data]
+         (let [[k v] (run-q q vector data)]
+           [(when (pred v) k) nil]))
+       ctx)))
 
 (comment
-  (-accept-data (filter-query (fn-query :a) odd?) nil {:a 1}))
+  (run-q (filter-query (fn-query :a) odd?) {:a 1}))
 
 ;;### seq query
 ;; A SeqQuery can apply to a sequence of maps
 (defn seq-query
   "Returns a seq-query which applies query `q` to data (must be a collection) and return."
-  [q]
-  (let [qid (-id q)]
-    (pq qid val-acceptor
-        (fn [data]
-          (when-not (sequential? data)
-            (data-error! "sequence expected" nil data))
-          [qid (map #(-accept-data q nil %) data)]))))
+  ([q]
+   (seq-query q nil))
+  ([q ctx]
+   (let [qid (-id q)]
+     (pq qid val-acceptor
+         (fn [data]
+           (when-not (sequential? data)
+             (data-error! "sequence expected" nil data))
+           [qid (map #(run-q q %) data)])
+         ctx))))
 
 (comment
-  (-accept-data (seq-query (vector-query [(fn-query :a) (fn-query :b)])) nil [{:a 3 :b 4} {:a 5} {}]))
+  (run-q (seq-query (vector-query [(fn-query :a) (fn-query :b)])) [{:a 3 :b 4} {:a 5} {}]))
 
 ;;### post-process-query
 ;; It is common to process data after it matches.
@@ -180,55 +205,57 @@
    `f-post-process` may change its value and return.
       - child: a query
       - f-post-process: [:=> [:kv-pair] :any]"
-  [child f-post-process]
-  (let [qid (-id child)]
-    (pq qid (-acceptor child)
-        (fn [data]
-          [qid (some-> (-accept-data child vector data) (f-post-process) (second))]))))
+  ([child f-post-process]
+   (post-process-query child f-post-process nil))
+  ([child f-post-process ctx]
+   (let [qid (-id child)]
+     (pq qid (-acceptor child)
+         (fn [data]
+           [qid (some-> (run-q child vector data) (f-post-process) (second))])
+         ctx))))
 
 ;;### Logical variable support
-(defn mk-named-var-query
-  "Returns a factory function which take a query `q` as its argument."
-  ([t-sym-table sym]
-   (mk-named-var-query t-sym-table (atom :fresh) sym))
-  ([t-sym-table status sym]
-   (fn [q]
-     (pq
-      (-id q)
-      (-acceptor q)
-      (fn [data]
-        (let [[k v] (-accept-data q vector data)]
-          (case @status
-            :fresh
-            (do
-              (assoc! t-sym-table sym v)
-              (reset! status :bound))
 
-            :bound
-            (let [old-v (get t-sym-table sym ::not-found)]
-              (when (not= v old-v)
-                (dissoc! t-sym-table sym)
-                (reset! status :invalid)))
-            nil)
-          [(when (not= @status :invalid) k) v]))))))
+(defprotocol QueryContext
+  "a context can be shared in queries"
+  (-named-query
+   [ctx sym q]
+   "returns a named query for `sym`")
+  (-bindings
+   [ctx]
+   "returns finished output bindings"))
 
-(comment
-  (let [a-sym-table (transient {})]
-    [(run-q ((mk-named-var-query a-sym-table '?a) (fn-query :a)) {:a 3})
-     (persistent! a-sym-table)]))
+(defn named-query
+  "returns a named query for context `ctx` of symbol `sym`"
+  [ctx sym q]
+  (-named-query ctx sym q))
 
-(defn named-var-factory
-  "Returns a function takes a symbol as the argument, returns a named-var-query."
+(defn- bind-kv
+  [t-symbol-table sym v]
+  (let [old-val (get t-symbol-table sym ::not-found)] 
+    (condp = old-val
+      ::not-found (do (assoc! t-symbol-table sym v) v)
+      v v
+      (do (dissoc! t-symbol-table sym) nil))))
+
+(deftype QueryContextImpl [t-symbol-table]
+  QueryContext
+  (-named-query
+   [this sym q]
+   (pq (-id q) (-acceptor q)
+       (fn [data]
+         (let [[k v] (run-q q vector data)
+               v (bind-kv t-symbol-table sym v)]
+           [(when v k) v]))
+       this))
+  (-bindings
+   [_]
+   (persistent! t-symbol-table)))
+
+(defn context 
+  "returns a new query context"
   []
-  (let [t-sym-table (transient {})
-        ;;cache for created named variable factory
-        a-cx-named  (atom {})]
-    [#(persistent! t-sym-table)
-     (fn [sym]
-       (or (get @a-cx-named sym)
-           (let [qf (mk-named-var-query t-sym-table sym)]
-             (swap! a-cx-named assoc sym qf)
-             qf)))]))
+  (->QueryContextImpl (transient {})))
 
 (defn run-bind
   "`f-query` takes a function (returned by `named-var-factory`) as argument,
@@ -236,8 +263,8 @@
     - query result
     - named variable binding map"
   [f-query data]
-  (let [[f-sym-table f-named-var] (named-var-factory)]
-    [(run-q (f-query f-named-var) data) (f-sym-table)]))
+  (let [data (run-q f-query data)]
+    [data (some-> f-query -context -bindings)]))
 
 ;;## Post processors
 
@@ -259,13 +286,16 @@
 
 (defn decorate-query
   "Returns a query which is `q` decorated by options specified by `pp-pairs`."
-  [q pp-pairs]
-  (reduce
-   (fn [acc [pp-type pp-value]]
-     (post-process-query
-      acc
-      (apply-post #:proc{:type pp-type :val pp-value})))
-   q pp-pairs))
+  ([q pp-pairs]
+   (decorate-query q pp-pairs nil))
+  ([q pp-pairs ctx]
+   (reduce
+    (fn [acc [pp-type pp-value]]
+      (post-process-query
+       acc
+       (apply-post #:proc{:type pp-type :val pp-value})
+       ctx))
+    q pp-pairs)))
 
 ;;### :when option
 ;; Takes a pred function as its argument (:proc/val)

@@ -15,21 +15,20 @@
 (defn- pattern->query
   "Takes a function `f-named-var` to create named variable query, and `x`
    is the expression to specify whole query,
-   returns a function takes named variable constructor."
-  [f-named-var]
-  (fn [x]
-    (let [ctor-map {:fn     core/fn-query
-                    :vec    core/vector-query
-                    :seq    core/seq-query
-                    :filter (fn [q v] (core/filter-query q (if (fn? v) v #(= % v))))
-                    :named  (fn [q sym] ((f-named-var sym) q))
-                    :join   core/join-query
-                    :deco   (fn [q pp-pairs]
-                              (core/decorate-query q pp-pairs))}
-          [x-name & args] x]
-      (if-let [f (get ctor-map x-name)]
-        (apply f args)
-        (ptn/pattern-error! "not understandable pattern" x)))))
+   returns a function takes named variable constructor." 
+  [ctx x]
+  (let [ctor-map {:fn     core/fn-query
+                  :vec    core/vector-query
+                  :seq    core/seq-query
+                  :filter (fn [q v ctx] (core/filter-query q (if (fn? v) v #(= v %)) ctx))
+                  :named  (fn [q sym ctx] (core/named-query ctx sym q))
+                  :join   core/join-query
+                  :deco   (fn [q pp-pairs ctx]
+                            (core/decorate-query q pp-pairs ctx))}
+        [x-name & args] x]
+    (if-let [f (get ctor-map x-name)]
+      (apply f (conj (vec args) ctx))
+      (ptn/pattern-error! "not understandable pattern" x))))
 
 (defn query
   "Returns a compiled query from `pattern`. A query can be used to extract information
@@ -59,23 +58,23 @@
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
   [pattern]
-  (with-meta
-    (fn [f-named-var]
-      (ptn/->query (pattern->query f-named-var) pattern))
-    {::compiled? true}))
+  (let [ctx (core/context)]
+    (ptn/->query (partial pattern->query ctx) pattern)))
 
 (defn run
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings."
   [query-or-pattern data]
-  (core/run-bind 
-   (if (some-> query-or-pattern meta ::compiled?)
-     query-or-pattern 
-     (query query-or-pattern)) 
+  (core/run-bind
+   (if (core/query? query-or-pattern)
+     query-or-pattern
+     (query query-or-pattern))
    data))
 
 (comment
+  (run '{:a ?a} {:a 3 :b 2})
+  (run '{:a ?a :b ?a} {:a 3 :b 2}) 
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
   (run {:a '?x :b '?x} {:a 2 :b 3})
   (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}])
