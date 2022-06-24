@@ -12,17 +12,21 @@
 ;; [:=> [:catn [:k :any] [:v :any]] :any]
 ;;
 ;; ### Why do we need acceptor?
-;; If a query is in a parent query context, it might want to have the 
-;; resulting data in a shape which is different from the default 
-;; context. Passing a acceptor function to a query can do it. If not,
-;; a query uses its default acceptor function.
+;; A query do 2 things:
+;;   - fetch value from data
+;;   - returns a data
+;; It defaults returning same data structure as its input.
+;; However, if a query is a child of another query, it might want to have the 
+;; resulting data in a shape which is different from the default one.
+;; A query have a default acceptor function and can pass another acceptor
+;; to override it.
 
-(defn val-acceptor
+(defn- val-acceptor
   "Identity acceptor, ignore k, only return `v`."
   [_ v]
   v)
 
-(defn accept
+(defn- accept
   "General acceptor function design: when k is nil, means there is no
    match, current progress should fail; when v is nil, means there is
    no value.
@@ -35,7 +39,7 @@
     (nil? v) x
     :else    (f-conj x [k v])))
 
-(def sconj
+(def ^:private sconj
   "commonn acceptor using `conj`"
   (partial accept conj))
 
@@ -43,7 +47,7 @@
   (sconj {} :a 1)
   (accept conj! (transient []) :a 1))
 
-(def map-acceptor
+(def ^:private map-acceptor
   "common acceptor using an empty map to accept"
   (partial sconj {}))
 
@@ -51,47 +55,46 @@
 
 (defprotocol DataQuery
   "Query"
-  (-id [query] "returns the id")
-  (-acceptor
-   [query]
-   "returns the acceptor, which is a function to `accept` data.")
-  (-context
-   [query]
-   "returns the context of the query")
   (-accept-data
-   [query f-accept data]
+   [query data f-accept]
    "accept data, f-accept is optional, to replace default acceptor"))
 
 (defn query?
+  "predict if `x` is a query"
   [x]
   (satisfies? DataQuery x))
 
 (defn run-q
-  "Run a query on its default acceptor"
+  "runs a query on `data` with optional function `f-accept`"
   ([q data]
-   (run-q q nil data))
-  ([q f-accept data]
-   (-accept-data q f-accept data)))
+   (run-q q data nil))
+  ([q data f-accept]
+   (-accept-data q data f-accept)))
 
-(deftype GenericDataQuery [id acceptor val-getter ctx]
+;; Implementation of GenericQuery
+;; - `ctx` data shared in a seri of queries
+;; - `val-getter` is a function to fetch information from data
+(defrecord GenericDataQuery [id val-getter acceptor ctx]
   DataQuery
-  (-id [_] id)
-  (-acceptor [_] acceptor)
-  (-context [_] ctx)
   (-accept-data
-   [_ f-accept data]
-   (apply (or f-accept acceptor) (val-getter data))))
+   [_ data f-accept]
+   (let [[k v] (val-getter data)]
+     ((or f-accept acceptor) k v))))
 
-(defn pq
+(defn- pq
   "Construct a general query:  
     - `id` key of this query
-    - `acceptor` default acceptor of this query, used when no acceptor specified when invoke.
-         [:=> [:catn [:k :any] [:v :any]] :any]
     - `val-getter` is the function to extract data (k, v pair).
          [:=> [:catn [:kv [:any :any]]] [:any :any]]
+    - `acceptor` default acceptor of this query, used when no acceptor specified when invoke.
+         [:=> [:catn [:k :any] [:v :any]] :any]
    "
-  [id acceptor val-getter ctx]
-  (->GenericDataQuery id acceptor val-getter ctx))
+  ([id val-getter]
+   (pq id val-getter nil))
+  ([id val-getter acceptor]
+   (pq id val-getter acceptor nil))
+  ([id val-getter acceptor ctx]
+   (->GenericDataQuery id val-getter acceptor ctx)))
 
 (defn data-error!
   "Throws an exception specify data error."
@@ -100,19 +103,19 @@
 
 ;; ### fn-query or simple query
 ;; Simplest form of a query
-;;FIXME stack consuming
 (defn fn-query
-  "Returns a simple query has key as `k`, `f` to return a value from a map."
+  "returns a simple query has key as `k`, `f` to return a value from a map."
   ([k]
    (fn-query k nil))
   ([k ctx]
-   (fn-query k #(get % k) ctx)) 
+   (fn-query k #(get % k) ctx))
   ([k f ctx]
-   (pq k map-acceptor
+   (pq k
        (fn [data]
          (when-not (associative? data)
-           (data-error! "associative(map) expected" k data))
+           (data-error! "Associative(map) required" k data))
          [k (f data)])
+       map-acceptor
        ctx)))
 
 (comment
@@ -122,15 +125,16 @@
 ;; Joins two queries altogether
 
 (defn join-query
-  "Returns a joined query: `q` queries in `parent-q`'s returned value."
+  "returns a joined query: `q` queries in `parent-q`'s returned value."
   ([parent-q q]
    (join-query parent-q q nil))
   ([parent-q q ctx]
-   (let [qid (-id parent-q)]
-     (pq qid (-acceptor parent-q)
+   (let [qid (:id parent-q)]
+     (pq qid 
          (fn [data]
-           [qid (when-let [pd (run-q parent-q val-acceptor data)]
+           [qid (when-let [pd (run-q parent-q data val-acceptor)]
                   (run-q q pd))])
+         (:acceptor parent-q)
          ctx))))
 
 (comment
@@ -140,25 +144,26 @@
 ;; ### vector-query
 ;; A vector query is a query collection as `queries`
 (defn vector-query
-  "Returns a vector query, takes other `queries` as its children,
+  "returns a vector query, takes other `queries` as its children,
    then apply them to data, return the merged map."
   ([queries]
    (vector-query queries nil))
   ([queries ctx]
-   (let [qid (map -id queries)]
-     (pq qid val-acceptor
+   (let [qid (map :id queries)]
+     (pq qid
          (fn [data]
            (let [collector (transient [])
-                 v (some->> queries
-                            (reduce (fn [acc q]
-                                      (run-q q
-                                             (comp
-                                              #(if (nil? %) (reduced nil)  %)
-                                              (partial accept conj! acc))
-                                             data))
-                                    collector)
-                            (persistent!))]
+                 v         (some->> queries
+                                    (reduce (fn [acc q]
+                                              (run-q q
+                                                     data
+                                                     (comp
+                                                      #(if (nil? %) (reduced nil)  %)
+                                                      (partial accept conj! acc))))
+                                            collector)
+                                    (persistent!))]
              [qid (into {} v)]))
+         val-acceptor
          ctx))))
 
 (comment
@@ -167,18 +172,20 @@
 ;;### filter query
 (defn filter-query
   "Returns a filter query which will not appears in result data, but will
-   void other query if in a vector query, `pred` is the filter condition."
+   void other query if in a vector query, `pred` is the filter condition.
+   It does not interact with context."
   ([q pred]
    (filter-query q pred nil))
   ([q pred ctx]
-   (pq (-id q) (-acceptor q)
+   (pq (:id q)
        (fn [data]
-         (let [[k v] (run-q q vector data)]
+         (let [[k v] (run-q q data vector)]
            [(when (pred v) k) nil]))
+       (:acceptor q)
        ctx)))
 
 (comment
-  (run-q (filter-query (fn-query :a) odd?) {:a 1}))
+  (run-q (filter-query (fn-query :a) odd?) {:a 2}))
 
 ;;### seq query
 ;; A SeqQuery can apply to a sequence of maps
@@ -187,12 +194,13 @@
   ([q]
    (seq-query q nil))
   ([q ctx]
-   (let [qid (-id q)]
-     (pq qid val-acceptor
+   (let [qid (:id q)]
+     (pq qid
          (fn [data]
            (when-not (sequential? data)
-             (data-error! "sequence expected" nil data))
+             (data-error! "Sequential data required" qid data))
            [qid (map #(run-q q %) data)])
+         val-acceptor
          ctx))))
 
 (comment
@@ -208,22 +216,23 @@
   ([child f-post-process]
    (post-process-query child f-post-process nil))
   ([child f-post-process ctx]
-   (let [qid (-id child)]
-     (pq qid (-acceptor child)
+   (let [qid (:id child)]
+     (pq qid
          (fn [data]
-           [qid (some-> (run-q child vector data) (f-post-process) (second))])
+           [qid (some-> (run-q child data vector) (f-post-process) (second))])
+         (:acceptor child)
          ctx))))
 
 ;;### Logical variable support
 
-(defprotocol QueryContext
-  "a context can be shared in queries"
+(defprotocol OutputQueryContext
+  "a context support variable binding output"
   (-named-query
-   [ctx sym q]
-   "returns a named query for `sym`")
+    [ctx sym q]
+    "returns a named query for `sym`")
   (-bindings
    [ctx]
-   "returns finished output bindings"))
+   "returns the output bindings"))
 
 (defn named-query
   "returns a named query for context `ctx` of symbol `sym`"
@@ -231,31 +240,32 @@
   (-named-query ctx sym q))
 
 (defn- bind-kv
-  [t-symbol-table sym v]
-  (let [old-val (get t-symbol-table sym ::not-found)] 
+  [symbol-table sym v]
+  (let [old-val (get @symbol-table sym ::not-found)] 
     (condp = old-val
-      ::not-found (do (assoc! t-symbol-table sym v) v)
+      ::not-found (do (swap! symbol-table assoc sym v) v)
       v v
-      (do (dissoc! t-symbol-table sym) nil))))
+      (do (swap! symbol-table dissoc sym) nil))))
 
-(deftype QueryContextImpl [t-symbol-table]
-  QueryContext
+(deftype QueryContextImpl [symbols]
+  OutputQueryContext
   (-named-query
-   [this sym q]
-   (pq (-id q) (-acceptor q)
-       (fn [data]
-         (let [[k v] (run-q q vector data)
-               v (bind-kv t-symbol-table sym v)]
-           [(when v k) v]))
-       this))
+    [this sym q]
+    (pq (:id q)
+        (fn [data]
+          (let [[k v] (run-q q data vector)
+                v     (bind-kv symbols sym v)]
+            [(when v k) v]))
+        (:acceptor q)
+        this))
   (-bindings
    [_]
-   (persistent! t-symbol-table)))
+   (deref symbols)))
 
 (defn context 
   "returns a new query context"
   []
-  (->QueryContextImpl (transient {})))
+  (->QueryContextImpl (atom {})))
 
 (defn run-bind
   "`f-query` takes a function (returned by `named-var-factory`) as argument,
@@ -264,7 +274,11 @@
     - named variable binding map"
   [f-query data]
   (let [data (run-q f-query data)]
-    [data (some-> f-query -context -bindings)]))
+    [data (some-> f-query :ctx (-bindings))]))
+
+(comment
+  (run-bind (named-query (context) 'a (fn-query :a)) {:a 2})
+  )
 
 ;;## Post processors
 

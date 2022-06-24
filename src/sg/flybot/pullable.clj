@@ -73,7 +73,7 @@
    data))
 
 (comment
-  (run '{:a ?a} {:a 3 :b 2})
+  (query '{:a ?})
   (run '{:a ?a :b ?a} {:a 3 :b 2}) 
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
   (run {:a '?x :b '?x} {:a 2 :b 3})
