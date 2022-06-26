@@ -234,11 +234,6 @@
    [ctx]
    "returns the output bindings"))
 
-(defn named-query
-  "returns a named query for context `ctx` of symbol `sym`"
-  [ctx sym q]
-  (-named-query ctx sym q))
-
 (defn- bind-kv
   [symbol-table sym v]
   (let [old-val (get @symbol-table sym ::not-found)] 
@@ -277,7 +272,7 @@
     [data (some-> f-query :ctx (-bindings))]))
 
 (comment
-  (run-bind (named-query (context) 'a (fn-query :a)) {:a 2})
+  (run-bind (-named-query (context) 'a (fn-query :a)) {:a 2})
   )
 
 ;;## Post processors

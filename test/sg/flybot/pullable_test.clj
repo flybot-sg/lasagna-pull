@@ -54,7 +54,8 @@
     [{:a 1} {'?a 1}]
 
     ;;named variable join
-    {:a 2 :b 3}      '{:a ?x :b ?x} [{} {}]
+    {:a 2 :b {:c 2}}      '{:a ?x :b {:c ?x}} [{:a 2 :b {:c 2}} '{?x 2}]
+    {:a 2 :b 1} '{:a ?x :b ?x} [{} {}]      
 
 
     ;;named join

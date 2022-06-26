@@ -21,7 +21,7 @@
                   :vec    core/vector-query
                   :seq    core/seq-query
                   :filter (fn [q v ctx] (core/filter-query q (if (fn? v) v #(= v %)) ctx))
-                  :named  (fn [q sym ctx] (core/named-query ctx sym q))
+                  :named  (fn [q sym ctx] (core/-named-query ctx sym q))
                   :join   core/join-query
                   :deco   (fn [q pp-pairs ctx]
                             (core/decorate-query q pp-pairs ctx))}
