@@ -8,7 +8,8 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]))
+   [sg.flybot.pullable.pattern :as ptn]
+   [sg.flybot.pullable.parameter :as param]))
 
 ;;## Glue code 
 
@@ -20,7 +21,12 @@
   (let [ctor-map {:fn     core/fn-query
                   :vec    core/vector-query
                   :seq    core/seq-query
-                  :filter (fn [q v ctx] (core/filter-query q (if (fn? v) v #(= v %)) ctx))
+                  :filter (fn [q v ctx] 
+                            (core/filter-query
+                             q
+                             (param/pred-of 
+                               (fn [data sym] (some-> (meta data) ::parameters (get sym))) v)
+                             ctx))
                   :named  (fn [q sym ctx] (core/-named-query ctx sym q))
                   :join   core/join-query
                   :deco   (fn [q pp-pairs ctx]
@@ -65,12 +71,14 @@
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings."
-  [query-or-pattern data]
-  (core/run-bind
-   (if (core/query? query-or-pattern)
-     query-or-pattern
-     (query query-or-pattern))
-   data))
+  ([query-or-pattern data]
+   (run query-or-pattern data nil))
+  ([query-or-pattern data parameters]
+   (core/run-bind
+    (if (core/query? query-or-pattern)
+      query-or-pattern
+      (query query-or-pattern))
+    (with-meta data {::parameters parameters}))))
 
 (comment
   (query '{:a ?})

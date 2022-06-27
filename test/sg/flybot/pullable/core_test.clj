@@ -17,7 +17,7 @@
     {:c 3}              {}))
 
 (deftest filter-query
-  (are [data exp] (= exp (sut/run-q (sut/filter-query (sut/fn-query :a) #(= % 3)) data))
+  (are [data exp] (= exp (sut/run-q (sut/filter-query (sut/fn-query :a) #(= %2 3)) data))
     {:a 3}   {}
     {:a 1}   nil))
 
@@ -35,7 +35,7 @@
     (is (= {:a 1} (sut/run-q (sut/vector-query [(sut/fn-query :a)]) {:a 1}))))
   (testing "has a filter child"
     (let [q (sut/vector-query
-             [(sut/fn-query :a) (sut/filter-query (sut/fn-query :b) #(= % 1))])]
+             [(sut/fn-query :a) (sut/filter-query (sut/fn-query :b) #(= %2 1))])]
       (are [data exp] (= exp (sut/run-q q data))
         {:a 1 :b 1}
         {:a 1}

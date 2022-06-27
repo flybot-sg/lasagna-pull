@@ -12,8 +12,8 @@
 (defn pred-of-fpp
   "returns a pred function which can be called using `parameters` table"
   [f-param-value [f paramter-names]]
-  (fn [v]
-    (let [parameter-val (mapv f-param-value paramter-names)]
+  (fn [data v]
+    (let [parameter-val (mapv #(f-param-value data %) paramter-names)]
       (apply f (conj parameter-val v)))))
 
 (defn parameter-symbol?
@@ -27,9 +27,11 @@
   [#(= % %2) [sym]])
 
 (defn pred-of
+  "returns a predicte constructed by `f-param-value` and expression `x`
+    - `f-param-value` is a function takes a parameter name, returns a value"
   [f-param-value x]
   (cond
     (fpp? x)              (pred-of-fpp f-param-value x)
     (parameter-symbol? x) (pred-of-fpp f-param-value (func-vec x))
-    (fn? x)               x
-    :else                 #(= % x)))
+    (fn? x)               (fn [_ v] (x v))
+    :else                 #(= %2 x)))

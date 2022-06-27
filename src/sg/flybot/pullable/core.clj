@@ -172,20 +172,20 @@
 ;;### filter query
 (defn filter-query
   "Returns a filter query which will not appears in result data, but will
-   void other query if in a vector query, `pred` is the filter condition.
-   It does not interact with context."
+   void other query if in a vector query, 
+    - `pred` takes 2 arguments, data and value"
   ([q pred]
    (filter-query q pred nil))
   ([q pred ctx]
    (pq (:id q)
        (fn [data]
          (let [[k v] (run-q q data vector)]
-           [(when (pred v) k) nil]))
+           [(when (pred data v) k) nil]))
        (:acceptor q)
        ctx)))
 
 (comment
-  (run-q (filter-query (fn-query :a) odd?) {:a 2}))
+  (run-q (filter-query (fn-query :a) #(odd? %2)) {:a 1}))
 
 ;;### seq query
 ;; A SeqQuery can apply to a sequence of maps
