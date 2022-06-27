@@ -5,7 +5,7 @@
 
 (deftest pred-of
   (testing "pred-of transform a value expression to a predict function"
-    (are [exp value x v] (= exp ((sut/pred-of (constantly value) x) v))
+    (are [exp value x v] (= exp ((sut/pred-of (constantly value) x) {} v))
       true  nil even? 2
       false nil even? 3
 
