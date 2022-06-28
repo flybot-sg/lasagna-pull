@@ -3,7 +3,9 @@
  {}
  :aliases
  {:dev
-  {:extra-paths ["test"]}
+  {:extra-paths ["test"]
+   :extra-deps {com.github.jpmonettas/flow-storm-dbg {:mvn/version "2.2.68"}
+                com.github.jpmonettas/flow-storm-inst {:mvn/version "2.2.68"}}}
   :test
   {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.60.977"}
                 lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}}

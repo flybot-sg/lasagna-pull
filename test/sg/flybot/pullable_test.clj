@@ -54,7 +54,8 @@
     [{:a 1} {'?a 1}]
 
     ;;named variable join
-    {:a 2 :b 3}      '{:a ?x :b ?x} [{} {}]
+    {:a 2 :b {:c 2}}      '{:a ?x :b {:c ?x}} [{:a 2 :b {:c 2}} '{?x 2}]
+    {:a 2 :b 1} '{:a ?x :b ?x} [{} {}]      
 
 
     ;;named join
@@ -79,3 +80,13 @@
     '{(:a :batch [[3] [{:ok 1}]]) ?a}
     [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]
     ))
+
+(deftest run-with-parameters
+  (testing "pattern can carry parameters"
+    (are [exp pattern data parameters] (= exp (sut/run pattern data parameters))
+      [{:b 1} {}] '{:b ? :a *a} {:a 2 :b 1} '{*a 2}
+      [{} {}]     '{:b ? :a *a} {:a 2 :b 1} '{*a 1}
+      
+      ;;join query should pass parameters
+      ;; [{:a {:b 1}} {}]     '{:a {:b ? :c *c}}  {:a {:b 1 :c 1}} '{*c 1}
+      )))
