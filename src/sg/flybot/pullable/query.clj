@@ -3,7 +3,7 @@
 (defprotocol Acceptor
   "An acceptor receives information"
   (-accept
-    [dc k v]
+    [acpt k v]
     "accept k,v pair to the context, returns resulting data"))
 
 (defprotocol DataQuery
@@ -13,10 +13,10 @@
     "returns the id (a.k.a key) of the query")
   (-default-acceptor
     [query]
-    "return the default context if the query is running independently")
+    "return the default acceptor if the query is running independently")
   (-run
     [query data acceptor]
-    "run `query` based on `data`, using `acceptor` to accept"))
+    "run `query` based on `data`, using `acceptor` to accept the result"))
 
 (extend-protocol Acceptor
   nil
@@ -29,7 +29,9 @@
   ([q data acceptor]
    (-run q data (or acceptor (-default-acceptor q)))))
 
-(defn map-acceptor
+;; Implementation
+
+(defn- map-acceptor
   "an acceptor of a map `m`"
   [m]
   (reify Acceptor
@@ -40,12 +42,24 @@
         :else
         (assoc m k v)))))
 
+(defn- data-error
+  "returns an exception represent data is not as expected
+   - `data`: the data been queries
+   - `qid`: the query id being running
+   - `reason`: a string general description"
+  [data qid reason]
+  (ex-info (str "expect " reason) {::data data ::query-id qid}))
+
+(defn error?
+  [x]
+  (instance? Exception x))
+
 (defn fn-query
   "a query using a function to extract data
    - `k` the id of the query
    - `f` function takes data as its argument, returns extracted data"
   ([k]
-   (fn-query k #(get % k)))
+   (fn-query k #(if (associative? %) (get % k) (data-error % k "associative"))))
   ([k f]
    (reify DataQuery
      (-id [_] k)
@@ -56,7 +70,7 @@
 (comment
   (run-query (fn-query :a) {:b 3}))
 
-(defn value-acceptor
+(defn- value-acceptor
   "returns an acceptor of value only"
   []
   (reify Acceptor
@@ -72,7 +86,10 @@
     (-default-acceptor [_] (-default-acceptor parent))
     (-run [this data acceptor]
       (let [parent-data (run-query parent data (value-acceptor))]
-        (-accept acceptor (-id this) (run-query child parent-data acceptor))))))
+        (-accept
+         acceptor
+         (-id this)
+         (when parent-data (run-query child parent-data acceptor)))))))
 
 (comment
   (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}))
@@ -110,7 +127,7 @@
       (-accept
        acceptor
        (-id this)
-       (transduce 
+       (transduce
         (map #(run-query q %))
         conj
         []
@@ -133,4 +150,46 @@
 
 (comment
   (run-query (filter-query (fn-query :a) #(= % 2)) {:a 2})
-  (run-query (vector-query [(filter-query (fn-query :a) odd?) (fn-query :b)]) {:a 1 :b 4 :c 5}))
+  (run-query (vector-query [(filter-query (fn-query :a) odd?) (fn-query :b)])
+             {:a 1 :b 4 :c 5}))
+
+(defprotocol NamedQueryFactory
+  "a factory to produce named query"
+  (-named-query [factory sym q]
+    "returns a named query based on query `q`, it will remember the
+   result of `q`.
+   - `sym`: a symbol for the result to output
+   - `q`: the underlying query")
+  (-symbol-values [factory]
+    "returns a symbol -> value map."))
+
+(defn named-query-factory
+  "returns a new NamedQueryFactory
+   - `a-symbol-table`: an atom of map to accept symbol-> val pair"
+  ([]
+   (named-query-factory (atom {})))
+  ([a-symbol-table]
+   (reify NamedQueryFactory
+     (-named-query [_ sym q]
+       (reify DataQuery
+         (-id [_] (-id q))
+         (-default-acceptor [_] (-default-acceptor q))
+         (-run [this data acceptor]
+           (let [v     (-run q data (value-acceptor))
+                 old-v (get @a-symbol-table sym ::not-found)]
+             (condp old-v
+                    ::not-found (swap! a-symbol-table assoc sym v)
+                    v           ::do-nothing
+                    ::invalid   ::do-nothing
+                    (swap! a-symbol-table assoc sym ::invalid))
+             (-accept acceptor (-id this) v)))))
+     (-symbol-values [_]
+       (into
+        {}
+        (filter #(not= ::invalid %))
+        @a-symbol-table)))))
+
+(comment
+  (def fac (named-query-factory))
+  (run-query (-named-query fac 'a (fn-query :a)) {:a 2})
+  (-symbol-values fac))
