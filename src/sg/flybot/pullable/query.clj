@@ -175,21 +175,24 @@
          (-id [_] (-id q))
          (-default-acceptor [_] (-default-acceptor q))
          (-run [this data acceptor]
-           (let [v     (-run q data (value-acceptor))
-                 old-v (get @a-symbol-table sym ::not-found)]
-             (condp old-v
-                    ::not-found (swap! a-symbol-table assoc sym v)
-                    v           ::do-nothing
-                    ::invalid   ::do-nothing
-                    (swap! a-symbol-table assoc sym ::invalid))
-             (-accept acceptor (-id this) v)))))
+           (let [v        (-run q data (value-acceptor))
+                 old-v    (get @a-symbol-table sym ::not-found)
+                 set-val! #(do (swap! a-symbol-table assoc sym %) %)
+                 rslt 
+                 (condp = old-v
+                   ::not-found (set-val! v)
+                   v           v
+                   ::invalid   ::invalid
+                   (set-val! ::invalid))]
+             (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
      (-symbol-values [_]
        (into
         {}
-        (filter #(not= ::invalid %))
+        (filter (fn [[_ v]] (not= ::invalid v)))
         @a-symbol-table)))))
 
 (comment
   (def fac (named-query-factory))
-  (run-query (-named-query fac 'a (fn-query :a)) {:a 2})
+  (run-query (vector-query [(-named-query fac 'a (fn-query :a))
+                            (-named-query fac 'a (fn-query :b))]) {:a 2 :b 1})
   (-symbol-values fac))
