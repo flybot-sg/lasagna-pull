@@ -1,7 +1,7 @@
 (ns sg.flybot.pullable.core.option-test
   (:require [sg.flybot.pullable.core.option :as sut]
             [sg.flybot.pullable.util :refer [error?]]
-            [clojure.test :refer [deftest is testing]])
+            [clojure.test :refer [deftest is]])
   (:import [clojure.lang ExceptionInfo]))
 
 (deftest apply-post-seq

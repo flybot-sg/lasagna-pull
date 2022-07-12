@@ -5,8 +5,7 @@
   "Implementation of queries.
    
    A query is a function which can extract k v from data."
-  (:require
-   [clojure.walk :refer [postwalk]]
+  (:require 
    [sg.flybot.pullable.util :refer [data-error]]
    [sg.flybot.pullable.core.option :as option]))
 
