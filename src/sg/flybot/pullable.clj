@@ -8,33 +8,9 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]
-   [sg.flybot.pullable.parameter :as param]))
+   [sg.flybot.pullable.pattern :as ptn]))
 
 ;;## Glue code 
-
-(defn- pattern->query
-  "Takes a function `f-named-var` to create named variable query, and `x`
-   is the expression to specify whole query,
-   returns a function takes named variable constructor." 
-  [ctx x]
-  (let [ctor-map {:fn     core/fn-query
-                  :vec    core/vector-query
-                  :seq    core/seq-query
-                  :filter (fn [q v ctx] 
-                            (core/filter-query
-                             q
-                             (param/pred-of 
-                               (fn [data sym] (some-> (meta data) ::parameters (get sym))) v)
-                             ctx))
-                  :named  (fn [q sym ctx] (core/-named-query ctx sym q))
-                  :join   core/join-query
-                  :deco   (fn [q pp-pairs ctx]
-                            (core/decorate-query q pp-pairs ctx))}
-        [x-name & args] x]
-    (if-let [f (get ctor-map x-name)]
-      (apply f (conj (vec args) ctx))
-      (ptn/pattern-error! "not understandable pattern" x))))
 
 (defn query
   "Returns a compiled query from `pattern`. A query can be used to extract information
@@ -64,8 +40,8 @@
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
   [pattern]
-  (let [ctx (core/context)]
-    (ptn/->query (partial pattern->query ctx) pattern)))
+  (let [query-maker (core/query-maker)]
+    (ptn/->query query-maker pattern #(if (fn? %) (fn [_ v] (% v)) (fn [_ exp] (= exp %))))))
 
 (defn run
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
@@ -81,9 +57,11 @@
     (with-meta data {::parameters parameters}))))
 
 (comment
-  (query '{:a ?})
-  (run '{:a ?a :b ?a} {:a 3 :b 2}) 
+  (run '{:a ?} {:a 3 :b 2})
+  (run '{:a 3 :b ?} {:a 3 :b 1})
+  (run '{:a ?a :b ?a} {:a 3 :b 2 :c 3}) 
+  (run '{:a {:b ?}} {:a {:b 1 :c 2}})
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
-  (run {:a '?x :b '?x} {:a 2 :b 3})
+  (run '{:a ?x :b ?x} {:a 2 :b 3})
   (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}])
   )
