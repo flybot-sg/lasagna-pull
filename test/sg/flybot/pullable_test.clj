@@ -5,7 +5,7 @@
 
 (deftest query
   (testing "`query` can precompile and run"
-    (is (= [{:a 1} {}] (sut/run (sut/query '{:a ?}) {:a 1})))))
+    (is (= [{:a 1} {}] ((sut/query '{:a ?}) {:a 1})))))
 
 (deftest ^:integrated run
   (are [data x exp] (= exp (sut/run x data))
@@ -80,13 +80,3 @@
     '{(:a :batch [[3] [{:ok 1}]]) ?a}
     [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]
     ))
-
-#_(deftest run-with-parameters
-  (testing "pattern can carry parameters"
-    (are [exp pattern data parameters] (= exp (sut/run pattern data parameters))
-      [{:b 1} {}] '{:b ? :a *a} {:a 2 :b 1} '{*a 2}
-      [{} {}]     '{:b ? :a *a} {:a 2 :b 1} '{*a 1}
-      
-      ;;join query should pass parameters
-      ;; [{:a {:b 1}} {}]     '{:a {:b ? :c *c}}  {:a {:b 1 :c 1}} '{*c 1}
-      )))

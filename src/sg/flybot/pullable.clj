@@ -13,8 +13,9 @@
 ;;## Glue code 
 
 (defn query
-  "Returns a compiled query from `pattern`. A query can be used to extract information
-   from data.
+  "Returns a query function from `pattern`. A query function can be used to extract information
+   from data. Query function takes `data` as its single argument, returns a vector of resulting
+   data and output variable bindings in a map.
    
    A pattern is a clojure data structure, in most cases, a pattern looks like the data
    which it queries, for example, to query data `{:a {:b {:c 5}} :d {:e 2}}` to extract
@@ -40,21 +41,17 @@
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
   [pattern]
-  (let [query-maker (core/query-maker)]
-    (ptn/->query query-maker pattern ptn/filter-maker)))
+  (let [query-maker (core/query-maker)
+        q           (ptn/->query query-maker pattern ptn/filter-maker)]
+    (fn [data]
+      (core/run-bind q data))))
 
 (defn run
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings."
-  ([query-or-pattern data]
-   (run query-or-pattern data nil))
-  ([query-or-pattern data parameters]
-   (core/run-bind
-    (if (core/query? query-or-pattern)
-      query-or-pattern
-      (query query-or-pattern))
-    (with-meta data {::parameters parameters}))))
+  ([pattern data]
+   ((query pattern) data)))
 
 (comment
   (run '{:a ?} {:a 3 :b 2})
