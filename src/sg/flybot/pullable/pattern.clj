@@ -16,53 +16,58 @@
   [v]
   (and (symbol? v) (re-matches #"\?.+" (name v))))
 
+(defn filter-maker
+  [x]
+  (if (fn? x) (fn [_ v] (x v)) (fn [_ exp] (= exp x))))
+
 ;; Query construct function
 ;; This is independent to query design by using function `f`.
 ;;FIXME use trampoline to protect stack
 (defn ->query
   "Compiles `pattern` by applying query creation function `f` to it."
-  [f pattern]
-  (letfn [(apply-opts
-           [qr opts]
-           (if (seq opts)
-             (f [:deco qr (partition 2 opts)])
-             qr))
-          (val-of
-           [k v]
-           (let [[k & opts] (if (sequential? k) k (list k))
-                 q (apply-opts (f [:fn k]) opts)]
-             (cond
-               (= '? v)
-               q
+  ([f pattern]
+   (->query f pattern identity))
+  ([f pattern filter-maker]
+   (letfn [(apply-opts
+             [qr opts]
+             (if (seq opts)
+               (f [:deco qr (partition 2 opts)])
+               qr))
+           (val-of
+             [k v]
+             (let [[k & opts] (if (sequential? k) k (list k))
+                   q (apply-opts (f [:fn k]) opts)]
+               (cond
+                 (= '? v)
+                 q
 
-               (lvar? v)
-               (f [:named q v])
+                 (lvar? v)
+                 (f [:named q v])
 
-               (or (map? v) (vector? v))
-               (f [:join q (->query f v)])
+                 (or (map? v) (vector? v))
+                 (f [:join q (->query f v filter-maker)])
 
-               :else
-               (f [:filter q v]))
-             ))]
-    (cond
-      (map? pattern)
-      (f [:vec (map #(apply val-of %) pattern)])
-      
-      (vector? pattern)
-      (let [[q var-name & opts] pattern
-            qr (apply-opts (f [:seq (->query f q)]) opts)]
-        (cond
-          (lvar? var-name)
-          (f [:named qr var-name])
+                 :else
+                 (f [:filter q (filter-maker v)]))))]
+     (cond
+       (map? pattern)
+       (f [:vec (map #(apply val-of %) pattern)])
 
-          (or (nil? var-name) (= '? var-name))
-          qr
-          
-          :else
-          (pattern-error! "seq options must start with a variable" pattern)))
-      
-      :else
-      (pattern-error! "unable to understand" pattern))))
+       (vector? pattern)
+       (let [[q var-name & opts] pattern
+             qr (apply-opts (f [:seq (->query f q filter-maker)]) opts)]
+         (cond
+           (lvar? var-name)
+           (f [:named qr var-name])
+
+           (or (nil? var-name) (= '? var-name))
+           qr
+
+           :else
+           (pattern-error! "seq options must start with a variable" pattern)))
+
+       :else
+       (pattern-error! "unable to understand" pattern)))))
 
 (comment
   (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})

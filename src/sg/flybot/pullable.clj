@@ -8,37 +8,14 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]
-   [sg.flybot.pullable.parameter :as param]))
+   [sg.flybot.pullable.pattern :as ptn]))
 
 ;;## Glue code 
 
-(defn- pattern->query
-  "Takes a function `f-named-var` to create named variable query, and `x`
-   is the expression to specify whole query,
-   returns a function takes named variable constructor." 
-  [ctx x]
-  (let [ctor-map {:fn     core/fn-query
-                  :vec    core/vector-query
-                  :seq    core/seq-query
-                  :filter (fn [q v ctx] 
-                            (core/filter-query
-                             q
-                             (param/pred-of 
-                               (fn [data sym] (some-> (meta data) ::parameters (get sym))) v)
-                             ctx))
-                  :named  (fn [q sym ctx] (core/-named-query ctx sym q))
-                  :join   core/join-query
-                  :deco   (fn [q pp-pairs ctx]
-                            (core/decorate-query q pp-pairs ctx))}
-        [x-name & args] x]
-    (if-let [f (get ctor-map x-name)]
-      (apply f (conj (vec args) ctx))
-      (ptn/pattern-error! "not understandable pattern" x))))
-
 (defn query
-  "Returns a compiled query from `pattern`. A query can be used to extract information
-   from data.
+  "Returns a query function from `pattern`. A query function can be used to extract information
+   from data. Query function takes `data` as its single argument, returns a vector of resulting
+   data and output variable bindings in a map.
    
    A pattern is a clojure data structure, in most cases, a pattern looks like the data
    which it queries, for example, to query data `{:a {:b {:c 5}} :d {:e 2}}` to extract
@@ -64,26 +41,24 @@
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
   [pattern]
-  (let [ctx (core/context)]
-    (ptn/->query (partial pattern->query ctx) pattern)))
+  (let [query-maker (core/query-maker)
+        q           (ptn/->query query-maker pattern ptn/filter-maker)]
+    (fn [data]
+      (core/run-bind q data))))
 
 (defn run
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings."
-  ([query-or-pattern data]
-   (run query-or-pattern data nil))
-  ([query-or-pattern data parameters]
-   (core/run-bind
-    (if (core/query? query-or-pattern)
-      query-or-pattern
-      (query query-or-pattern))
-    (with-meta data {::parameters parameters}))))
+  ([pattern data]
+   ((query pattern) data)))
 
 (comment
-  (query '{:a ?})
-  (run '{:a ?a :b ?a} {:a 3 :b 2}) 
+  (run '{:a ?} {:a 3 :b 2})
+  (run '{:a 3 :b ?} {:a 3 :b 1})
+  (run '{:a ?a :b ?a} {:a 3 :b 2 :c 3}) 
+  (run '{:a {:b ?}} {:a {:b 1 :c 2}})
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
-  (run {:a '?x :b '?x} {:a 2 :b 3})
+  (run '{:a ?x :b ?x} {:a 2 :b 3})
   (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}])
   )
