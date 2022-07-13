@@ -177,7 +177,7 @@
   "returns a new NamedQueryFactory
    - `a-symbol-table`: an atom of map to accept symbol-> val pair"
   ([]
-   (named-query-factory (atom {})))
+   (named-query-factory (atom nil)))
   ([a-symbol-table]
    (reify NamedQueryFactory
      (-named-query [_ q sym]
@@ -196,10 +196,11 @@
                    (set-val! ::invalid))] 
              (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
      (-symbol-values [_]
-       (into
-        {}
-        (filter (fn [[_ v]] (not= ::invalid v)))
-        @a-symbol-table)))))
+       (when-let [binds @a-symbol-table]
+         (into
+          {}
+          (filter (fn [[_ v]] (not= ::invalid v)))
+          binds))))))
 
 (comment
   (def fac (named-query-factory))
