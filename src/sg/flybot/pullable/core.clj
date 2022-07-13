@@ -27,10 +27,6 @@
     [query data acceptor]
     "run `query` based on `data`, using `acceptor` to accept the result"))
 
-(defn query?
-  [x]
-  (satisfies? DataQuery x))
-
 (extend-protocol Acceptor
   nil
   (-accept [_ _ _] nil))
