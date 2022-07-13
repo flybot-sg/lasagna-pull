@@ -16,7 +16,16 @@
     {:a {:b 1 :c 2}}    {:a {:b 1}}
     {:c 3}              {})
   (testing "join with vec"
-    (is (= {:a {:b 1}} (sut/run-query (sut/join-query (sut/fn-query :a) (sut/vector-query [(sut/fn-query :b)])) {:a {:b 1}})))))
+    (is (= {:a {:b 1}} 
+           (sut/run-query 
+            (sut/join-query (sut/fn-query :a) (sut/vector-query [(sut/fn-query :b)])) {:a {:b 1}}))))
+  (testing "error in parent query will shortcut child query"
+    (is (error?
+         (-> :a
+             sut/fn-query
+             (sut/join-query (sut/fn-query :b))
+             (sut/run-query 3)
+             :a)))))
 
 (deftest filter-query
   (are [data exp] (= exp (sut/run-query (sut/filter-query (sut/fn-query :a) #(= %2 3)) data))

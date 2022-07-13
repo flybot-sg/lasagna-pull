@@ -6,7 +6,7 @@
    
    A query is a function which can extract k v from data."
   (:require 
-   [sg.flybot.pullable.util :refer [data-error]]
+   [sg.flybot.pullable.util :refer [data-error error?]]
    [sg.flybot.pullable.core.option :as option]))
 
 (defprotocol Acceptor
@@ -104,7 +104,9 @@
         (-accept
          acceptor
          (-id this)
-         (when parent-data (run-query child parent-data (-default-acceptor child))))))))
+         (if (or (nil? parent-data) (error? parent-data))
+           parent-data
+           (run-query child parent-data (-default-acceptor child))))))))
 
 (comment
   (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}))
@@ -242,6 +244,7 @@
     q pp-pairs)))
 
 (defn query-maker
+  "returns a query making function which takes a vector as argment and construct a query."
   []
   (let [named-fac   (named-query-factory)
         f-map {:fn     fn-query

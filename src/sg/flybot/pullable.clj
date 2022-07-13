@@ -41,7 +41,7 @@
        `[{:a 1} {:a 3} {}]`. "
   [pattern]
   (let [query-maker (core/query-maker)]
-    (ptn/->query query-maker pattern #(if (fn? %) (fn [_ v] (% v)) (fn [_ exp] (= exp %))))))
+    (ptn/->query query-maker pattern ptn/filter-maker)))
 
 (defn run
   "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.

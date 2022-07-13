@@ -16,6 +16,10 @@
   [v]
   (and (symbol? v) (re-matches #"\?.+" (name v))))
 
+(defn filter-maker
+  [x]
+  (if (fn? x) (fn [_ v] (x v)) (fn [_ exp] (= exp x))))
+
 ;; Query construct function
 ;; This is independent to query design by using function `f`.
 ;;FIXME use trampoline to protect stack
