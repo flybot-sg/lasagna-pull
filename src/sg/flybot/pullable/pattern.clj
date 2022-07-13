@@ -2,7 +2,10 @@
 ; Apache License 2.0, http://www.apache.org/licenses/
 
 (ns sg.flybot.pullable.pattern
-  "Pull pattern definition.")
+  "Pull pattern definition."
+  (:require [malli.core :as m]
+            [malli.error :as me]
+            [malli.util :as mu]))
 
 (defn pattern-error!
   "Throws an error indicates pattern error."
@@ -70,5 +73,79 @@
        (pattern-error! "unable to understand" pattern)))))
 
 (comment
-  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})
+  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}}) 
   )
+
+(defn valid-symbol?
+  "Returns true if `p` is a symbol starting with ?"
+  [p]
+  (and (symbol? p) (re-matches #"\?.*" (name p))))
+
+
+(def sch-pattern-proc
+  "Malli schema for the different post-processors in the keys.
+   Expects individual post-processors with format [proc arg]
+   i.e. [:not-found 0]"
+  [:multi {:dispatch first}
+   [:when [:tuple [:= :when] fn?]]
+   [:not-found [:tuple [:= :not-found] :any]]
+   [:with [:tuple [:= :with] vector?]]
+   [:batch [:tuple [:= :batch] [:vector vector?]]]
+   [:watch [:tuple [:= :watch] fn?]]])
+
+(defn valid-proc-keys?
+  "Validates the key with post-processors such as (:a :not-found 0 :when even?)."
+  [k] 
+  (->> k
+       rest
+       (partition 2) 
+       (map #(m/validate sch-pattern-proc (into [] %))) 
+       (every? true?)))
+
+(def sch-pattern
+  "Malli schema for the pattern."
+  [:schema
+   {:registry
+    {::pattern
+     [:or
+      [:map-of
+       [:or
+        ;; simple keyword
+        :keyword
+        ;; key with post-processors
+        [:fn valid-proc-keys?]]
+       [:or
+        ;; '? or '?x
+        [:fn valid-symbol?]
+        ;; filters
+        [:fn #(not (sequential? %))]
+        ;; single pattern
+        [:ref ::pattern]
+        ;; sequence of maps
+        [:tuple [:ref ::pattern]]
+        ;; sequence of maps with logical variable
+        [:tuple [:ref ::pattern] [:maybe [:fn valid-symbol?]]]
+        ;; seq post-processor
+        [:tuple [:ref ::pattern] [:fn valid-symbol?] [:= :seq] [:sequential any?]]]]]}}
+   [:or
+    ::pattern
+    [:tuple ::pattern]
+    [:tuple ::pattern [:maybe [:fn valid-symbol?]]]
+    [:tuple ::pattern [:fn valid-symbol?] [:= :seq] [:sequential any?]]]])
+
+(defn validate-pattern
+  "Runs the `pattern` against the malli schema.
+   Returns the `pattern` if pattern is valid, else throws error."
+  [pattern] 
+  (let [validator (m/validator sch-pattern)]
+    (if (validator pattern)
+      pattern
+      (throw
+       (let [err (mu/explain-data sch-pattern pattern)]
+         (ex-info (str (me/humanize err))
+                  {:pattern pattern :error err}))))))
+
+(comment 
+  (m/validate sch-pattern
+   [{(list :a :not-found 3 :when odd?) '?
+    '(:b :with [3]) {(list :c :when odd?) '?c :d even?}}]))
