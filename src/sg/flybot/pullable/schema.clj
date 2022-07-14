@@ -33,7 +33,7 @@
                         x))
               m)))
 
-(def sch-pattern-proc
+(def sch-pattern-keys
   "Malli schema for the different post-processors in the keys.
    Expects individual post-processors with format [proc arg]
    i.e. [:not-found 0]"
@@ -45,31 +45,27 @@
    [:watch [:tuple [:= :watch] fn?]]
    [::m/default [:tuple :keyword :nil]]])
 
+(defn sch-pattern-seq
+  "Malli schema for the pattern eventually inside seq."
+  [pattern]
+  [:or 
+    pattern 
+    [:tuple pattern]
+    [:tuple pattern [:maybe [:fn valid-symbol?]]]
+    [:tuple pattern [:fn valid-symbol?] [:= :seq] [:sequential any?]]])
+
 (def sch-pattern
   "Malli schema for the pattern."
   [:schema
    {:registry
     {::pattern
      [:map-of
-      [:vector sch-pattern-proc]
-      [:or
-        ;; '? or '?x
-       [:fn valid-symbol?]
-        ;; filters
-       [:fn #(not (sequential? %))]
-        ;; single pattern
-       [:ref ::pattern]
-        ;; sequence of maps
-       [:tuple [:ref ::pattern]]
-        ;; sequence of maps with logical variable
-       [:tuple [:ref ::pattern] [:maybe [:fn valid-symbol?]]]
-        ;; seq post-processor
-       [:tuple [:ref ::pattern] [:fn valid-symbol?] [:= :seq] [:sequential any?]]]]}}
-   [:or
-    ::pattern
-    [:tuple ::pattern]
-    [:tuple ::pattern [:maybe [:fn valid-symbol?]]]
-    [:tuple ::pattern [:fn valid-symbol?] [:= :seq] [:sequential any?]]]])
+      [:vector sch-pattern-keys]
+      [:or 
+       [:fn valid-symbol?] ;; '? or '?x 
+       [:fn #(not (sequential? %))] ;; filters
+       (sch-pattern-seq [:ref ::pattern])]]}}
+   (sch-pattern-seq ::pattern)])
 
 (defn validate-pattern
   "Runs the `pattern` against the malli schema.
