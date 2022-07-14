@@ -70,5 +70,4 @@
        (pattern-error! "unable to understand" pattern)))))
 
 (comment
-  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}})
-  )
+  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}}))
