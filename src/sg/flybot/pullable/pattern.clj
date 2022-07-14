@@ -3,7 +3,8 @@
 
 (ns sg.flybot.pullable.pattern
   "Pull pattern definition."
-  (:require [malli.core :as m]
+  (:require [clojure.walk :refer [postwalk]]
+            [malli.core :as m]
             [malli.error :as me]
             [malli.util :as mu]))
 
@@ -73,14 +74,34 @@
        (pattern-error! "unable to understand" pattern)))))
 
 (comment
-  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}}) 
-  )
+  (->query #(concat % ['ok]) '{(:a :with [{:b 2 :c 3}]) {:b ?}}))
 
 (defn valid-symbol?
-  "Returns true if `p` is a symbol starting with ?"
+  "Returns true if `p` is a lvar or ?"
   [p]
-  (and (symbol? p) (re-matches #"\?.*" (name p))))
+  (and (symbol? p)
+       (or (lvar? p)
+           (= "?" (name p)))))
 
+(defn transform-key
+  "Adapts map keys formats to make it malli schema friendly.
+   i.e. (:a :when even? :not-found 0) => [[:a nil] [:when odd?] [:not-found 0]]."
+  [mk]
+  (let [[k & opts] (if (sequential? mk) mk [mk])]
+    (->> (concat [k nil] opts)
+         (partition 2)
+         (map vec)
+         (into []))))
+
+(defn transform-all-keys
+  "Recursively transforms all map keys to malli friendly keys."
+  [m]
+  (let [f (fn [[k v]] [(transform-key k) v])]
+    ;; only apply to maps
+    (postwalk (fn [x] (if (map? x)
+                        (into {} (map f x))
+                        x))
+              m)))
 
 (def sch-pattern-proc
   "Malli schema for the different post-processors in the keys.
@@ -91,42 +112,29 @@
    [:not-found [:tuple [:= :not-found] :any]]
    [:with [:tuple [:= :with] vector?]]
    [:batch [:tuple [:= :batch] [:vector vector?]]]
-   [:watch [:tuple [:= :watch] fn?]]])
-
-(defn valid-proc-keys?
-  "Validates the key with post-processors such as (:a :not-found 0 :when even?)."
-  [k] 
-  (->> k
-       rest
-       (partition 2) 
-       (map #(m/validate sch-pattern-proc (into [] %))) 
-       (every? true?)))
+   [:watch [:tuple [:= :watch] fn?]]
+   [::m/default [:tuple :keyword :nil]]])
 
 (def sch-pattern
   "Malli schema for the pattern."
   [:schema
    {:registry
     {::pattern
-     [:or
-      [:map-of
-       [:or
-        ;; simple keyword
-        :keyword
-        ;; key with post-processors
-        [:fn valid-proc-keys?]]
-       [:or
+     [:map-of
+      [:vector sch-pattern-proc]
+      [:or
         ;; '? or '?x
-        [:fn valid-symbol?]
+       [:fn valid-symbol?]
         ;; filters
-        [:fn #(not (sequential? %))]
+       [:fn #(not (sequential? %))]
         ;; single pattern
-        [:ref ::pattern]
+       [:ref ::pattern]
         ;; sequence of maps
-        [:tuple [:ref ::pattern]]
+       [:tuple [:ref ::pattern]]
         ;; sequence of maps with logical variable
-        [:tuple [:ref ::pattern] [:maybe [:fn valid-symbol?]]]
+       [:tuple [:ref ::pattern] [:maybe [:fn valid-symbol?]]]
         ;; seq post-processor
-        [:tuple [:ref ::pattern] [:fn valid-symbol?] [:= :seq] [:sequential any?]]]]]}}
+       [:tuple [:ref ::pattern] [:fn valid-symbol?] [:= :seq] [:sequential any?]]]]}}
    [:or
     ::pattern
     [:tuple ::pattern]
@@ -135,17 +143,20 @@
 
 (defn validate-pattern
   "Runs the `pattern` against the malli schema.
+   The pattern keys are first modified to allow malli schema validation.
    Returns the `pattern` if pattern is valid, else throws error."
-  [pattern] 
-  (let [validator (m/validator sch-pattern)]
-    (if (validator pattern)
+  [pattern]
+  (let [validator        (m/validator sch-pattern)
+        pattern-new-keys (transform-all-keys pattern)]
+    (if (validator pattern-new-keys)
       pattern
       (throw
-       (let [err (mu/explain-data sch-pattern pattern)]
+       (let [err (mu/explain-data sch-pattern pattern-new-keys)]
          (ex-info (str (me/humanize err))
-                  {:pattern pattern :error err}))))))
+                  {:pattern          pattern
+                   :pattern-new-keys pattern-new-keys
+                   :error            err}))))))
 
-(comment 
-  (m/validate sch-pattern
-   [{(list :a :not-found 3 :when odd?) '?
-    '(:b :with [3]) {(list :c :when odd?) '?c :d even?}}]))
+(comment
+  (m/validate sch-pattern {[[:a nil] [:not-found 3] [:when odd?]] '?})
+  (validate-pattern [{(list :a :not-found 3 :when odd?) '?}]))

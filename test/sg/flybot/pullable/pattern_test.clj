@@ -22,18 +22,21 @@
     '[{:a ?} ?a :seq [1 2]] [:named [:deco [:seq [:vec [[:fn :a :ok]] :ok] :ok] [[:seq [1 2]]] :ok] '?a :ok]
     ))
 
-(deftest valid-proc-keys?
-  (testing "post-processors respects schemas"
-    (are [exp k] (= exp (sut/valid-proc-keys? k))
-      ;; valid options
-      true (list :a :when odd?)
-      true (list :a :not-found 0 :when even? :with [2])
-      true (list :a :with [1 2 3])
-      true (list :a :batch [[3] [{:ok 1}]])
-      true (list :a :watch (constantly :watch))
-      ;; invalid options
-      false (list :a :with 3)
-      false (list :a :unknown :ko))))
+(deftest transform-key
+  (testing "Converts the keyword to a vector of vectors"
+    (is (= [[:a nil]]
+           (sut/transform-key :a))))
+  (testing "Converts the list to a vector of vectors"
+    (is (= [[:a nil] [:when even?] [:not-found 0]]
+           (sut/transform-key (list :a :when even? :not-found 0))))))
+
+(deftest transform-all-keys
+  (testing "Converts all the keys of the maps to vector of vectors."
+    (is (= [{[[:a nil] [:not-found 3] [:when odd?]] '?
+             [[:b nil] [:with [3]]] {[[:c nil] [:when odd?]] '?c [[:d nil]] even?}}]
+           (sut/transform-all-keys
+            [{(list :a :not-found 3 :when odd?) '?
+              '(:b :with [3]) {(list :c :when odd?) '?c :d even?}}])))))
 
 (deftest pattern-valid?
   (testing "Pattern is wrong so throws error."
