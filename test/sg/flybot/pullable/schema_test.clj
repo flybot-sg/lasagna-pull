@@ -21,7 +21,7 @@
             [{(list :a :not-found 3 :when odd?) '?
               '(:b :with [3]) {(list :c :when odd?) '?c :d even?}}])))))
 
-(deftest pattern-valid?
+(deftest validate-pattern
   (testing "Pattern is wrong so throws error."
     (is (thrown? ExceptionInfo (sut/validate-pattern {:a '? :b []})))
     (is (thrown? ExceptionInfo (sut/validate-pattern '[{:a 3} :with [3]]))))
@@ -72,3 +72,19 @@
 
     ;;batch option 
       '{(:a :batch [[3] [{:ok 1}]]) ?a})))
+
+(deftest validate-data
+  (testing "The data complies to schema so returns data." 
+    (is (= [{:a "foo"} {}]
+           (sut/validate-data
+            [{:a "foo"} {}]
+            [:map [:a :string]]))))
+  (testing "The data does not comply to schema so throws error." 
+    (is (thrown? ExceptionInfo
+                 (sut/validate-data
+                  [{:a "foo"} {}]
+                  [:map [:a :int]])))
+    (is (thrown? ExceptionInfo
+                 (sut/validate-data
+                  [{:a "foo" :b "bar"} {}]
+                  [:map {:closed true} [:a :string]])))))

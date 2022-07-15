@@ -2,7 +2,7 @@
 ; Apache License 2.0, http://www.apache.org/licenses/
 
 (ns sg.flybot.pullable.schema
-  "Pattern validation with Malli schema."
+  "Pattern and data validation with Malli schema."
   (:require [clojure.walk :refer [postwalk]]
             [malli.core :as m]
             [malli.error :as me]
@@ -67,21 +67,35 @@
        (sch-pattern-seq [:ref ::pattern])]]}}
    (sch-pattern-seq ::pattern)])
 
-(defn validate-pattern
-  "Runs the `pattern` against the malli schema.
-   The pattern keys are first modified to allow malli schema validation.
-   Returns the `pattern` if pattern is valid, else throws error."
-  [pattern]
-  (let [validator        (m/validator sch-pattern)
-        pattern-new-keys (transform-all-keys pattern)]
-    (if (validator pattern-new-keys)
-      pattern
+(defn validate*
+  "Runs the `data` against the malli `schema`.
+   The data is first transformed via `f-transform` before validation.
+   `f-transform` is a 1arg function that takes the `data`.
+   Returns the `data` if the transformed data is valid, else throws error."
+  [data f-transform schema]
+  (let [validator        (m/validator schema)
+        transformed-data (f-transform data)]
+    (if (validator transformed-data)
+      data
       (throw
-       (let [err (mu/explain-data sch-pattern pattern-new-keys)]
+       (let [err (mu/explain-data schema transformed-data)]
          (ex-info (str (me/humanize err))
-                  {:pattern          pattern
-                   :pattern-new-keys pattern-new-keys
-                   :error            err}))))))
+                  {:data         data
+                   :data-checked transformed-data
+                   :error        err}))))))
+
+(defn validate-pattern
+  "Returns the given `pattern` if it respects the malli schema `sch-pattern`, else throws error.
+   The keys of the pattern are modified before validation to comply to malli schema syntax."
+  [pattern]
+  (validate* pattern transform-all-keys sch-pattern))
+
+(defn validate-data
+  "Returns the given `pulled-data` if it respects the given malli `schema`, else throws error.
+   `pulled-data` is a vector such as [{:a 3} {'?a 3}].
+   Only the first part is validated, such as {:a 3}."
+  [pulled-data schema]
+  (validate* pulled-data first schema))
 
 (comment
   (m/validate sch-pattern {[[:a nil] [:not-found 3] [:when odd?]] '?})
