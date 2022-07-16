@@ -4,6 +4,8 @@
 (ns sg.flybot.pullable.util
   "misc utility functions")
 
+(defrecord DataError [data query-id reason])
+
 (defn data-error
   "returns an exception represent data is not as expected
    - `data`: the data been queries
@@ -12,9 +14,14 @@
   ([data qid]
    (data-error data qid "data error"))
   ([data qid reason]
-   (ex-info reason {:type :data :data data :query-id qid :reason reason})))
+   (DataError. data qid reason)))
 
 (defn error?
   "predict if `x` is error"
   [x]
-  (instance? Throwable x))
+  (instance? DataError x))
+
+(comment
+  (pr-str
+   (data-error {} :k))
+  )
