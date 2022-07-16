@@ -24,6 +24,16 @@ The idea of a general-purpose query language for native Clojure data structure s
  - It makes no sense that a remote app can have some features while code in the same app can not.
  - Can be expressed in a pure Clojure data structure.
  - Follows the shape of app data. Users can query by an example.
+
+
+## Data error
+
+If running a pattern for given `data` encounters unexpected data, it will not throwing exceptions, a special error data will generated in place instead. 
+
+```clojure
+(run '{:a ?} 3) ;=> {:a #error{...}}
+```
+
 ## Query pattern
 
 Generally, query patterns have the same structure as your data; where there is a map, you use a map in place of it; where there is a sequence (vector, list, etc.) of maps, you use a vector in place.
