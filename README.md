@@ -6,24 +6,43 @@
 
 ## Rational
 
-Organizing all data into a big data structure makes it a single point of truth, which is a good practice for Clojure app. 
+Maps and collections are butter and bread in Clojure, and we store all kinds of data. Therefore, getting data (aka query) is very important, and `get-in` and `select-keys` are very common in our code.
 
- - Data is organized by its domain nature, easy to navigate.
- - No more duplicated data prevents all kinds of out-of-sync problems.
- - By checking this app data, a program can be easier to be reasoned.
+However, if maps are deeply nested, this approach becomes cumbersome. Some excellent libraries are trying to make it easy, like [spector](https://github.com/redplanetlabs/specter) and [Datomic pull API](https://docs.datomic.com/on-prem/query/pull.html).
 
-If you use [fun-map](https://github.com/robertluo/fun-map), you can even put all your database and its operations into this big map, making this approach easier for real-world, complicated data.
+`Lasagna-pull`'s `query` turns a query pattern (a kind of data structure) into a function:
 
-Clojure has built-in functions like `select-keys` that can return the same shape data from a map, too limited.
+```clojure
+(require '[sg.flybot.pullable :as pull])
 
-Inspired by [Datomic Pull API](https://docs.datomic.com/on-prem/pull.html) and [EQL](https://edn-query-language.org/eql/1.0.0/what-is-eql.html), this simple library provide you with a precise and straightforward pattern that allows you to pull data out in one call.
+(def my-query (pull/query '{:a ? :b {:c ?}}))
 
-The idea of a general-purpose query language for native Clojure data structure should have features like:
+(my-query {:a 3 :d 5 :b {:e {:f :something} :c "Hello"}}) ;=> [{:a 3 :b {:c "Hello"}} nil]
+```
 
- - Can be used locally or remotely, when using it remotely as an app API is just a natural extension.
- - It makes no sense that a remote app can have some features while code in the same app can not.
- - Can be expressed in a pure Clojure data structure.
- - Follows the shape of app data. Users can query by an example.
+The design purposes of the pulling pattern are:
+
+ - Pure Clojure data structure.
+ - Similar to the data structure which you are going to query. You could think of it as an example.
+
+## Core Functions
+
+ - `query`: Returns a function that can query data.
+ - `run`: Runs a query directly.
+
+ Both functions return a pair of resulting data and named bindings. 
+
+ - If there are no matches, the resulting data will be `nil`
+ - If no named bindings are specified in the pattern, that part will be `nil`.
+
+## Data error
+
+If running a pattern for given `data` encounters unexpected data, it will not throw exceptions. A particular error data will be generated in place instead. 
+
+```clojure
+(run '{:a ?} 3) ;=> {:a #error{...}}
+```
+
 ## Query pattern
 
 Generally, query patterns have the same structure as your data; where there is a map, you use a map in place of it; where there is a sequence (vector, list, etc.) of maps, you use a vector in place.
