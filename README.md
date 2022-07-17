@@ -25,6 +25,15 @@ The design purposes of the pulling pattern are:
  - Pure Clojure data structure.
  - Similar to the data structure which you are going to query. You could think of it as an example.
 
+## Core Functions
+
+ - `query`: Returns a function that can query data.
+ - `run`: Runs a query directly.
+
+ Both functions return a pair of resulting data and named bindings. 
+
+ - If there are no matches, the resulting data will be `nil`
+ - If no named bindings are specified in the pattern, that part will be `nil`.
 
 ## Data error
 
