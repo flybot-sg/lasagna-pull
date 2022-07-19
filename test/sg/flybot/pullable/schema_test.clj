@@ -1,32 +1,12 @@
 (ns sg.flybot.pullable.schema-test
   (:require
    [sg.flybot.pullable.schema :as sut]
-   [clojure.test :refer [deftest are testing is]])
-(:import
- [clojure.lang ExceptionInfo]))
+   [clojure.test :refer [deftest are testing]]))
 
-(deftest transform-key
-  (testing "Converts the keyword to a vector of vectors"
-    (is (= [[:a nil]]
-           (sut/transform-key :a))))
-  (testing "Converts the list to a vector of vectors"
-    (is (= [[:a nil] [:when even?] [:not-found 0]]
-           (sut/transform-key (list :a :when even? :not-found 0))))))
-
-(deftest transform-all-keys
-  (testing "Converts all the keys of the maps to vector of vectors."
-    (is (= [{[[:a nil] [:not-found 3] [:when odd?]] '?
-             [[:b nil] [:with [3]]] {[[:c nil] [:when odd?]] '?c [[:d nil]] even?}}]
-           (sut/transform-all-keys
-            [{(list :a :not-found 3 :when odd?) '?
-              '(:b :with [3]) {(list :c :when odd?) '?c :d even?}}])))))
 
 (deftest pattern-valid?
-  (testing "Pattern is wrong so throws error."
-    (is (thrown? ExceptionInfo (sut/validate-pattern {:a '? :b []})))
-    (is (thrown? ExceptionInfo (sut/validate-pattern '[{:a 3} :with [3]]))))
   (testing "Pattern is valid so returns it."
-    (are [p] (= p (sut/validate-pattern p))
+    (are [p] (true? ((sut/pattern-validator nil) p))
     ;;basic patterns
       '{:a ?}
       '{:a ? :b ?}
