@@ -30,8 +30,13 @@
                [:nested [:ref ::pattern]]
                [:filter :any]]
    ::vector   [:map-of ::key ::val]
-   ::seq      [:vector
-               [:ref ::pattern]]
+   ::seq      [:cat
+               ::vector
+               [:?
+                [:alt
+                 [:= '?]
+                 [:fn lvar?]]]
+               [:* ::option]]
    ::pattern  [:or
                ::vector
                ::seq]})
