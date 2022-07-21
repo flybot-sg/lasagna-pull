@@ -1,10 +1,11 @@
 (ns sg.flybot.pullable.schema-test
-  (:require
-   [sg.flybot.pullable.schema :as sut]
-   [clojure.test :refer [deftest are testing]]))
+  (:require [clojure.test :refer [are deftest testing]]
+            [malli.core :as m]
+            [malli.util :as mu]
+            [sg.flybot.pullable.schema :as sut]))
 
 
-(deftest pattern-valid?
+(deftest pattern-validator
   (testing "Pattern is valid so returns it."
     (are [p] (true? ((sut/pattern-validator nil) p))
     ;;basic patterns
@@ -52,3 +53,39 @@
 
     ;;batch option 
       '{(:a :batch [[3] [{:ok 1}]]) ?a})))
+
+(deftest combine-data-pattern
+  (testing "Combines the data schema with the pattern registry."
+    (are [sch-data sch-exp] (mu/equals
+                             (m/schema sch-exp {:registry sut/pattern-registry})
+                             (sut/combine-data-pattern sch-data))
+      ;; simple map
+      [:map [:a :int] [:b :string]]
+      [:map [:a [:or ::sut/var :int]] [:b [:or ::sut/var :string]]]
+
+      ;; conserve malli option map
+      [:map {:description "ok" :closed true} [:a {:min 1} :int]]
+      [:map {:description "ok" :closed true} [:a {:min 1} [:or ::sut/var :int]]]
+
+      ;; nested map
+      [:map [:a [:map [:b :string]]]]
+      [:map [:a [:map [:b [:or ::sut/var :string]]]]]
+
+      ;; simple seq - not seq of pattern
+      [:map [:a [:sequential :int]]]
+      [:map [:a [:or ::sut/var [:sequential :int]]]]
+
+      ;; simple seq
+      [:map [:a [:sequential [:map [:b :int]]]]]
+      [:map [:a [:sequential [:map [:b [:or ::sut/var :int]]]]]]
+
+      ;; nested seq
+      [:vector
+       [:map
+        [:a [:set [:map [:b :keyword]]]]]]
+      [:vector
+       [:map
+        [:a [:set [:map [:b [:or ::sut/var :keyword]]]]]]]
+
+      ;; TODO: options
+      )))
