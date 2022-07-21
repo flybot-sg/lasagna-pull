@@ -1,6 +1,5 @@
 (ns sg.flybot.pullable.schema-test
-  (:require [clojure.test :refer [are deftest testing]]
-            [malli.core :as m]
+  (:require [clojure.test :refer [is are deftest testing]]
             [malli.util :as mu]
             [sg.flybot.pullable.schema :as sut]))
 
@@ -52,13 +51,19 @@
       '[{:a ? :b ?} ? :seq [2 3]]
 
     ;;batch option 
-      '{(:a :batch [[3] [{:ok 1}]]) ?a})))
+      '{(:a :batch [[3] [{:ok 1}]]) ?a}))
+      (testing "data-schema provided conbined with pattern is valid."
+        (is (true? ((sut/pattern-validator
+                     [:schema
+                      {:registry {::test :int}}
+                      [:map [:a :int] [:b :string]]])
+                    {:a '?a :b "ok"})))))
 
 (deftest combine-data-pattern
   (testing "Combines the data schema with the pattern registry."
     (are [sch-data sch-exp] (mu/equals
-                             (m/schema sch-exp {:registry sut/pattern-registry})
-                             (sut/combine-data-pattern sch-data))
+                             [:schema {:registry sut/general-pattern-registry} sch-exp]
+                             (sut/combine-data-pattern [:schema nil sch-data]))
       ;; simple map
       [:map [:a :int] [:b :string]]
       [:map [:a [:or ::sut/var :int]] [:b [:or ::sut/var :string]]]
@@ -85,7 +90,4 @@
         [:a [:set [:map [:b :keyword]]]]]]
       [:vector
        [:map
-        [:a [:set [:map [:b [:or ::sut/var :keyword]]]]]]]
-
-      ;; TODO: options
-      )))
+        [:a [:set [:map [:b [:or ::sut/var :keyword]]]]]]])))
