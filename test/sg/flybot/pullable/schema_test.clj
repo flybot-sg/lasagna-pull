@@ -53,9 +53,9 @@
        [:map
         [:a [:set [:map [:b [:or ::sut/var :keyword]]]]]]])))
 
-(deftest pattern-validator
-  (testing "No data provided case: pattern is valid."
-    (are [p] (true? ((sut/pattern-validator nil) p))
+(deftest general-pattern-validator
+  (testing "No data provided case: general pattern is valid."
+    (are [p] (true? (sut/general-pattern-validator p))
       ;;basic patterns
       '{:a ?}
       '{:a ? :b ?}
@@ -100,23 +100,27 @@
       '[{:a ? :b ?} ? :seq [2 3]]
 
       ;;batch option
-      '{(:a :batch [[3] [{:ok 1}]]) ?a}))
+      '{(:a :batch [[3] [{:ok 1}]]) ?a})))
 
-      (testing "data + pattern are valid."
-        (is (true? ((sut/pattern-validator
-                     [:schema 
-                      {:registry {::test :string}}
-                      [:map [:a :int] [:b ::test]]])
-                    {:a '?a :b "ok"}))))
-      (testing "data valid but pattern invalid."
-        (is (false? ((sut/pattern-validator
-                     [:schema
-                      {:registry {::test :string}}
-                      [:map [:a :int] [:b ::test]]])
-                    {:c '?c}))))
-      (testing "pattern valid but data invalid."
-        (is (false? ((sut/pattern-validator
-                      [:map [:a :int] [:b :int]])
-                    {:a '?a :b "ok"}))))
-      ;;TODO: data-schema does not work with options (:with, :seq etc)
-      )
+(deftest pattern-validator
+  (let [data-schema [:schema
+                     {:registry {::test :string}}
+                     [:map [:a :int] [:b ::test]]]]
+    (testing "No data provided case: general pattern is valid."
+      (is (true? ((sut/pattern-validator nil) '{:a ?}))))
+    (testing "data + pattern are valid."
+      (is (true? ((sut/pattern-validator
+                   data-schema)
+                  {:a '?a :b "ok"}))))
+    (testing "keys are properly encoded for data validation."
+      (is (true? ((sut/pattern-validator
+                   data-schema)
+                  {'(:a :not-found 0) '?a :b "ok"}))))
+    (testing "data valid but pattern invalid."
+      (is (false? ((sut/pattern-validator
+                    data-schema)
+                   {:c '?c}))))
+    (testing "pattern valid but data invalid."
+      (is (false? ((sut/pattern-validator
+                    data-schema)
+                   {:a '?a :b :ko}))))))

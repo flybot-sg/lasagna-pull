@@ -4,7 +4,8 @@
 (ns sg.flybot.pullable.schema
   "Pattern validation with Malli schema."
   (:require [malli.core :as m]
-            [malli.util :as mu]))
+            [malli.util :as mu]
+            [malli.transform :as mt]))
 
 (defn lvar?
   [x]
@@ -58,7 +59,7 @@
 
 (defn combine-data-pattern
   "Walks through the `data-schema` and updates it with pattern registry when applicable."
-  [data-schema] 
+  [data-schema]
   (m/walk
    data-schema
    (fn [schema _ children options]
@@ -80,23 +81,46 @@
       v-schema
       [:schema nil v-schema])))
 
-(defn pattern-validator
-  "returns a function which can validate query pattern.
-   - `data-schema`: user provided schema for data"
-  [data-schema]
+(def general-pattern-validator
   (m/validator
-   (if data-schema
-     (let [schema        (-> data-schema to-vector-syntax m/children first)
-           data-registry (-> data-schema m/properties :registry)]
-       (combine-data-pattern
-        [:schema
-         {:registry ((fnil merge {}) data-registry general-pattern-registry)}
-         [:and ::pattern schema]]))
-     [:schema
-      {:registry general-pattern-registry}
-      ::pattern])))
+   [:schema
+    {:registry general-pattern-registry}
+    ::pattern]))
+
+(defn keys-decoder
+  "Transform pattern's keys into simple keyword keys against the data-schema.
+   i.e. {'(:a :with [3]) '?a} => {:a '?a}"
+  [data-schema]
+  (m/encoder
+   data-schema
+   (mt/key-transformer
+    {:encode (fn [k] (if (sequential? k) (first k) k))})))
+
+(defn client-pattern-validator
+  [data-schema]
+  (let [inner-schema  (-> data-schema to-vector-syntax m/children first)
+        data-registry (-> data-schema m/properties :registry)]
+    (m/validator
+     (combine-data-pattern
+      [:schema
+       {:registry ((fnil merge {}) data-registry general-pattern-registry)}
+       inner-schema]))))
+
+(defn pattern-validator
+  "Returns a function which can validate a query pattern.
+   Validates pattern agains 2 schemas:
+   - general pattern schema: generic validation (options in keys, selectors formats etc.)
+   - client pattern schema: when `data-schema` is provided, runs furhter validations combining the data and pattern format when applicable
+   (proper keys, proper filters, etc.)"
+  [data-schema]
+  (if data-schema
+    (let [decoder       (keys-decoder data-schema)
+          validator     (and general-pattern-validator
+                             (client-pattern-validator data-schema))]
+      (fn [pattern] (->> pattern decoder validator)))
+    general-pattern-validator))
 
 (comment
   ((pattern-validator nil) '{:a ?a (:b :with [3]) {:c ?c}})
   ((pattern-validator [:schema nil [:map [:a :int] [:b [:map [:c :string]]]]])
-   {:a '?a :b {:c '?c}}))
+   {'(:a :with [3]) '?a :b {:c '?c}}))
