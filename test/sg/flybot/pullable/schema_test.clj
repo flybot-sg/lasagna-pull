@@ -67,7 +67,7 @@
         ::sut/seq-args]])))
 
 (deftest general-pattern-validator
-  (testing "No data provided case: general pattern is valid."
+  (testing "General pattern is valid."
     (are [p] (true? (sut/general-pattern-validator p))
       ;;basic patterns
       '{:a ?}
@@ -115,27 +115,41 @@
       ;;batch option
       '{(:a :batch [[3] [{:ok 1}]]) ?a})))
 
+(deftest client-pattern-schena
+  (testing "The client registry is properly merged with the pattern registry"
+    (let [data-schema [:schema
+                       {:registry {::test :string}}
+                       :int]
+          exp         [:schema
+                       {:registry (merge {::test :string} sut/general-pattern-registry)}
+                       :int]]
+      (is (mu/equals exp (sut/client-pattern-schema data-schema))))))
+
+(deftest client-pattern-validator
+  (testing "keys are properly encoded for data validation."
+    (let [data-schema [:map [:a :int] [:b :string]]]
+      (is (true? ((sut/client-pattern-validator data-schema)
+                  {'(:a :not-found 0) '?a :b "ok"}))))) 
+  (testing "seq option is properly validated."
+    (let [data-schema [:vector [:map [:a :int] [:b :int]]]]
+      (is (true? ((sut/client-pattern-validator data-schema)
+                    '[{:a ? :b ?}])))
+      (is (true? ((sut/client-pattern-validator data-schema)
+                    '[{:a ? :b ?} ? :seq [2 3]]))))))
+
 (deftest pattern-validator
   (let [data-schema [:schema
                      {:registry {::test :string}}
                      [:map [:a :int] [:b ::test]]]]
     (testing "No data provided case: general pattern is valid."
-      (is (true? ((sut/pattern-validator nil) '{:a ?}))))
+      (is (= '{:a ?}
+             ((sut/pattern-validator nil) '{:a ?}))))
     (testing "data + pattern are valid."
-      (is (true? ((sut/pattern-validator data-schema)
-                  {:a '?a :b "ok"}))))
-    (testing "keys are properly encoded for data validation."
-      (is (true? ((sut/pattern-validator data-schema)
-                  {'(:a :not-found 0) '?a :b "ok"}))))
+      (is (= {:a '?a :b "ok"}
+             ((sut/pattern-validator data-schema) {:a '?a :b "ok"}))))
     (testing "data valid but pattern invalid."
-      (is (false? ((sut/pattern-validator data-schema)
-                   {:c '?c}))))
+      (is (= :general-pattern-syntax
+           (-> {'(:a :wrong-option [3]) '?a} ((sut/pattern-validator data-schema)) ex-data :err-type))))
     (testing "pattern valid but data invalid."
-      (is (false? ((sut/pattern-validator data-schema)
-                   {:a '?a :b :ko})))))
-  (let [data-schema [:vector [:map [:a :int] [:b :int]]]]
-    (testing "seq option is properly encoded for data validation."
-      (is (true? ((sut/pattern-validator data-schema)
-                  '[{:a ? :b ?}])))
-      (is (true? ((sut/pattern-validator data-schema)
-                  '[{:a ? :b ?} ? :seq [2 3]]))))))
+      (is (= :client-pattern-data
+           (-> {:a '?a :b :ko} ((sut/pattern-validator data-schema)) ex-data :err-type))))))

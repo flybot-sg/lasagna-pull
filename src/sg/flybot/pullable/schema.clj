@@ -73,11 +73,13 @@
                ::vector
                ::seq]})
 
+(def general-pattern-schema
+  [:schema
+   {:registry general-pattern-registry}
+   ::pattern])
+
 (def general-pattern-validator
-  (m/validator
-   [:schema
-    {:registry general-pattern-registry}
-    ::pattern]))
+  (m/validator general-pattern-schema))
 
 ;;; Client pattern
 
@@ -125,24 +127,31 @@
         (m/type schema) (m/properties schema) children options)))
    (m/options data-schema)))
 
-(defn keys-decoder
-  "Transforms pattern's keys into simple keyword keys against the data-schema.
+(def keys-transformer
+  "Transforms pattern's keys into simple keyword keys.
    i.e. {'(:a :with [3]) '?a} => {:a '?a}"
+  (mt/key-transformer
+   {:encode (fn [k] (if (sequential? k) (first k) k))}))
+
+(defn keys-encoder
+  "Returns an encoder that uses `keys-transformer` on the pattern."
   [data-schema]
-  (m/encoder
-   data-schema
-   (mt/key-transformer
-    {:encode (fn [k] (if (sequential? k) (first k) k))})))
+  (m/encoder data-schema keys-transformer))
+
+(defn client-pattern-schema
+  [data-schema]
+  (combine-data-pattern
+   (let [inner-schema  (-> data-schema to-vector-syntax m/children first)
+         data-registry (-> data-schema m/properties :registry)]
+     [:schema
+      {:registry ((fnil merge {}) data-registry general-pattern-registry)}
+      inner-schema])))
 
 (defn client-pattern-validator
   [data-schema]
-  (let [inner-schema  (-> data-schema to-vector-syntax m/children first)
-        data-registry (-> data-schema m/properties :registry)]
-    (m/validator
-     (combine-data-pattern
-      [:schema
-       {:registry ((fnil merge {}) data-registry general-pattern-registry)}
-       inner-schema]))))
+  (let [encoder       (keys-encoder data-schema)
+        validator     (m/validator (client-pattern-schema data-schema))]
+    (comp validator encoder)))
 
 ;;; Validator of pattern
 
@@ -151,14 +160,22 @@
    Validates pattern agains 2 schemas:
    - general pattern schema: generic validation (options in keys, selectors formats etc.)
    - client pattern schema: when `data-schema` is provided, runs furhter validations combining the data and pattern format when applicable
-   (proper keys, proper filters, etc.)"
+   (proper keys, proper filters, etc.)
+   The function returns the pattern if it is valid, else returns ex-info."
   [data-schema]
-  (if data-schema
-    (let [decoder       (keys-decoder data-schema)
-          validator     (and general-pattern-validator
-                             (client-pattern-validator data-schema))]
-      (comp validator decoder))
-    general-pattern-validator))
+  (fn [pattern] 
+    (cond
+      (not (general-pattern-validator pattern))
+      (ex-info "error in pattern syntax"
+               {:err-type :general-pattern-syntax
+                :err      (mu/explain-data general-pattern-schema pattern)})
+      (and data-schema
+           (not ((client-pattern-validator data-schema) pattern)))
+      (ex-info "error in pattern query"
+               {:err-type :client-pattern-data
+                :err      (mu/explain-data data-schema (m/encode data-schema pattern keys-transformer))})
+      :else
+      pattern)))
 
 (comment
   ((pattern-validator nil) '{:a ?a (:b :with [3]) {:c ?c}})
