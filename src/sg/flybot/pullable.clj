@@ -8,7 +8,8 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]))
+   [sg.flybot.pullable.pattern :as ptn]
+   [sg.flybot.pullable.schema :as sch]))
 
 ;;## Glue code 
 
@@ -47,11 +48,18 @@
       (core/run-bind q data))))
 
 (defn run
-  "Given `data`, compile `pattern` if it has not been, run it, try to match with `data`.
+  "Given `data`, validate and compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
-   variable bindings."
+   variable bindings.
+   An optional malli `schema` can be provided to ensure the hape of the data to be pulled.
+   Returns the error pattern if it is not valid."
   ([pattern data]
-   ((query pattern) data)))
+   (run pattern nil data))
+  ([pattern schema data]
+   (let [pattern ((sch/pattern-validator schema) pattern)]
+     (if (:error pattern)
+       pattern
+       ((query pattern) data)))))
 
 (comment
   (run '{:a ?} {:a 3 :b 2})

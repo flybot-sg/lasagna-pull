@@ -161,19 +161,21 @@
    - general pattern schema: generic validation (options in keys, selectors formats etc.)
    - client pattern schema: when `data-schema` is provided, runs furhter validations combining the data and pattern format when applicable
    (proper keys, proper filters, etc.)
-   The function returns the pattern if it is valid, else returns ex-info."
+   The function returns the pattern if it is valid, else returns pure malli error."
   [data-schema]
   (fn [pattern] 
     (cond
       (not (general-pattern-validator pattern))
-      (ex-info "error in pattern syntax"
-               {:err-type :general-pattern-syntax
-                :err      (mu/explain-data general-pattern-schema pattern)})
+      {:error {:cause     "Invalid general pattern syntax"
+               :type      :general-pattern-syntax
+               :malli-err (mu/explain-data general-pattern-schema pattern)}}
+
       (and data-schema
            (not ((client-pattern-validator data-schema) pattern)))
-      (ex-info "error in pattern query"
-               {:err-type :client-pattern-data
-                :err      (mu/explain-data data-schema (m/encode data-schema pattern keys-transformer))})
+      {:error {:cause     "Invalid client pattern data"
+               :type      :client-pattern-data
+               :malli-err (mu/explain-data data-schema (m/encode data-schema pattern keys-transformer))}}
+
       :else
       pattern)))
 

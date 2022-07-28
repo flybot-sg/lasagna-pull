@@ -149,7 +149,7 @@
              ((sut/pattern-validator data-schema) {:a '?a :b "ok"}))))
     (testing "data valid but pattern invalid."
       (is (= :general-pattern-syntax
-           (-> {'(:a :wrong-option [3]) '?a} ((sut/pattern-validator data-schema)) ex-data :err-type))))
+           (-> {'(:a :wrong-option [3]) '?a} ((sut/pattern-validator data-schema)) :error :type))))
     (testing "pattern valid but data invalid."
       (is (= :client-pattern-data
-           (-> {:a '?a :b :ko} ((sut/pattern-validator data-schema)) ex-data :err-type))))))
+           (-> {:a '?a :b :ko} ((sut/pattern-validator data-schema)) :error :type))))))
