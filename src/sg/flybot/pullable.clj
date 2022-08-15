@@ -41,32 +41,31 @@
        can have an optional variable and options. i.e., pattern 
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
-  [pattern]
-  (let [query-maker (core/query-maker)
-        q           (ptn/->query query-maker pattern ptn/filter-maker)]
-    (fn [data]
-      (core/run-bind q data))))
+  [pattern & [schema]]
+  (fn [data]
+    (let [p ((sch/pattern-validator schema) pattern)]
+      (if (:error p)
+        p
+        (let [query-maker (core/query-maker)
+              q           (ptn/->query query-maker pattern ptn/filter-maker)]
+          (core/run-bind q data))))))
 
 (defn run
   "Given `data`, validate and compile `pattern` if it has not been, run it, try to match with `data`.
    Returns a vector of matching result (same structure as data) and a map of logical
    variable bindings.
-   An optional malli `schema` can be provided to ensure the hape of the data to be pulled.
+   An optional malli `schema` can be provided to ensure the shape of the data to be pulled.
    Returns the error pattern if it is not valid."
   ([pattern data]
    (run pattern nil data))
   ([pattern schema data]
-   (let [pattern ((sch/pattern-validator schema) pattern)]
-     (if (:error pattern)
-       pattern
-       ((query pattern) data)))))
+   ((query pattern schema) data)))
 
 (comment
   (run '{:a ?} {:a 3 :b 2})
   (run '{:a 3 :b ?} {:a 3 :b 1})
-  (run '{:a ?a :b ?a} {:a 3 :b 2 :c 3}) 
+  (run '{:a ?a :b ?a} {:a 3 :b 2 :c 3})
   (run '{:a {:b ?}} {:a {:b 1 :c 2}})
   (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
   (run '{:a ?x :b ?x} {:a 2 :b 3})
-  (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}])
-  )
+  (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}]))
