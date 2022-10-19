@@ -87,7 +87,9 @@
 ;; Can watch on a IRef value
 (def watchable?
   "pred if `x` is watchable"
-  (partial instance? clojure.lang.IRef))
+  (fn [x]
+    #?(:clj  (instance? clojure.lang.IRef x)
+       :cljs (satisfies? IDeref x))))
 
 (defmethod apply-post :watch
   [arg]

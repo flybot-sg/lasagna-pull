@@ -2,8 +2,7 @@
   (:require
    [sg.flybot.pullable.pattern :as sut]
    [clojure.test :refer [deftest are testing is]])
-  (:import
-   [clojure.lang ExceptionInfo]))
+  #?(:clj (:import [clojure.lang ExceptionInfo])))
 
 (deftest ->query
   (testing "If pattern is wrong, ->query can complain"
