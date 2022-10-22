@@ -9,7 +9,7 @@
 
 (deftest ^:integrated run
   (testing "Pattern is valid and pull the expected data."
-    (are [data x exp] (= exp (sut/run x data))
+    (are [data x exp] (= exp ((sut/query x) data))
       ;;basic patterns
       {:a 1}           '{:a ?}        [{:a 1} nil]
       {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} nil]
@@ -79,10 +79,4 @@
       ;;batch option
       {:a identity}
       '{(:a :batch [[3] [{:ok 1}]]) ?a}
-      [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]))
-  
-  (testing "Pattern respects the given data-schema."
-    (is (= [{:a 1} '{?a 1}]
-           (sut/run {:a '?a} [:map [:a :int]] {:a 1}))))
-  (testing "Pattern invalid so returns error."
-    (is (:error (sut/run {:a '?a} [:map [:b :int]] {:a 1})))))
+      [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}])))

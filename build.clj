@@ -1,36 +1,33 @@
 (ns build
   "Build script for this project"
   (:require [clojure.tools.build.api :as b]
-            [org.corfield.build :as cb]
-            [marginalia.main :as marg]))
+            [org.corfield.build :as cb]))
 
-(def lib 'sg.flybot/lasagna-pull)
-(def version (format "0.3.%s" (b/git-count-revs nil)))
-(def url "https://github.com/flybot-sg/lasagna-pull")
+(defn project 
+  "apply project default to `opts`"
+  [opts]
+  (let [defaults {:lib     'sg.flybot/lasagna-pull
+                  :version (format "0.3.%s" (b/git-count-revs nil))
+                  :scm     {:url "https://github.com/flybot-sg/lasagna-pull"}}]
+    (merge defaults opts)))
 
-(defn source-files
-  [dir]
-  (->> (file-seq (java.io.File. dir))
-       (map str)
-       (filter #(re-matches #".*?\.clj.?+" %))
-       (map #(str "./" %))))
-
-(defn docs
-  "Produce source documentations."
-  [_]
-  (cb/clean {:target "docs"})
-  (apply marg/-main (source-files "src")))
+(defn tests 
+  "run all tests, for clj and cljs."
+  [opts]
+  (-> opts
+      (cb/run-task [:dev :test])
+      (cb/run-task [:dev :cljs-test])))
 
 (defn ci
   [opts]
   (-> opts
-      (assoc :lib lib :version version :scm {:url url})
+      (project)
       (cb/clean)
-      (cb/run-tests)
+      (tests)
       (cb/jar)))
 
 (defn deploy
   [opts]
   (-> opts
-      (assoc :lib lib :version version)
+      (project)
       (cb/deploy)))
