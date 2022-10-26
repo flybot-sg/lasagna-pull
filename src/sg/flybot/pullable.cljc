@@ -41,6 +41,8 @@
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
        `[{:a 1} {:a 3} {}]`. "
   ([pattern]
+   (query pattern nil))
+  ([pattern context]
    (fn [data]
-     (let [q (ptn/->query (core/query-maker) pattern ptn/filter-maker)]
+     (let [q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
        (core/run-bind q data)))))

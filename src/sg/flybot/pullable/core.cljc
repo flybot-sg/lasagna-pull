@@ -33,7 +33,8 @@
 
 (defprotocol QueryContext
   "A shared context between subqueries"
-  (-wrap-query [context query args] "returns a wrapped query from `query` and optional arguments `args`")
+  (-wrap-query [context query args] 
+               "returns a wrapped query from `query` and optional arguments `args`")
   (-finalize [context m] "returns a map when queries are done on map `m`"))
 
 (defn run-query
@@ -174,21 +175,22 @@
    (named-query-factory (atom nil)))
   ([a-symbol-table]
    (reify QueryContext
-     (-wrap-query [_ q [sym]]
-       (reify DataQuery
-         (-id [_] (-id q))
-         (-default-acceptor [_] (-default-acceptor q))
-         (-run [this data acceptor]
-           (let [v        (-run q data (value-acceptor))
-                 old-v    (get @a-symbol-table sym ::not-found)
-                 set-val! #(do (swap! a-symbol-table assoc sym %) %)
-                 rslt
-                 (condp = old-v
-                   ::not-found (set-val! v)
-                   v           v
-                   ::invalid   ::invalid
-                   (set-val! ::invalid))]
-             (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
+     (-wrap-query
+      [_ q [sym]]
+      (reify DataQuery
+        (-id [_] (-id q))
+        (-default-acceptor [_] (-default-acceptor q))
+        (-run [this data acceptor]
+          (let [v        (-run q data (value-acceptor))
+                old-v    (get @a-symbol-table sym ::not-found)
+                set-val! #(do (swap! a-symbol-table assoc sym %) %)
+                rslt
+                (condp = old-v
+                  ::not-found (set-val! v)
+                  v           v
+                  ::invalid   ::invalid
+                  (set-val! ::invalid))]
+            (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
      (-finalize [_ m]
        (when-let [binds @a-symbol-table]
          (into 
@@ -248,17 +250,21 @@
     (-finalize [_ acc]
       (reduce #(-finalize %2 %) acc contexts))))
 
+(extend-protocol QueryContext
+  nil
+  (-wrap-query [_ q _] q)
+  (-finalize [_ m] m))
 
 (defn query-maker
   "returns a query making function which takes a vector as argment and construct a query."
-  []
-  (let [context   (named-query-factory)
+  [context]
+  (let [named-fac (named-query-factory)
         f-map {:fn     fn-query
                :vec    vector-query
                :join   join-query
                :filter filter-query
                :seq    seq-query
-               :named  (fn [q & args] (-wrap-query context q args))
+               :named  (fn [q & args] (-wrap-query named-fac q args))
                :deco   decorate-query}]
     (fn [[query-type & args]]
       (with-meta
@@ -266,7 +272,4 @@
           (if f
             (apply f args)
             (throw (ex-info "unknown query type" {:type query-type}))))
-        {::context context}))))
-
-(comment
-  (run-query ((query-maker) :fn :a) {:a 1 :b 2}))
+        {::context (composite-context [context named-fac])}))))
