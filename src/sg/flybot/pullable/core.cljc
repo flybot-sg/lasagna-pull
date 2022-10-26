@@ -5,7 +5,7 @@
   "Implementation of queries.
    
    A query is a function which can extract k v from data."
-  (:require 
+  (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
    [sg.flybot.pullable.core.option :as option]))
 
@@ -31,14 +31,10 @@
   nil
   (-accept [_ _ _] nil))
 
-(defprotocol NamedQueryFactory
-  "a factory to produce named query"
-  (-named-query [factory q sym]
-    "returns a named query based on query `q`, it will remember the result of `q`.
-     - `sym`: a symbol for the result to output
-     - `q`: the underlying query")
-  (-symbol-values [factory]
-    "returns a symbol -> value map."))
+(defprotocol QueryContext
+  "A shared context between subqueries"
+  (-wrap-query [context query args] "returns a wrapped query from `query` and optional arguments `args`")
+  (-finalize [context m] "returns a map when queries are done on map `m`"))
 
 (defn run-query
   "runs a query `q` on `data` using `acceptor` (when nil uses q's default acceptor)"
@@ -49,8 +45,10 @@
 
 (defn run-bind
   [q data]
-  (let [fac (some-> q meta ::named-query-factory)]
-    [(run-query q data) (when fac (-symbol-values fac))]))
+  (let [fac (some-> q meta ::context)
+        rslt (run-query q data)
+        m   (-finalize fac {})]
+    [rslt m]))
 
 ;; Implementation
 
@@ -175,8 +173,8 @@
   ([]
    (named-query-factory (atom nil)))
   ([a-symbol-table]
-   (reify NamedQueryFactory
-     (-named-query [_ q sym]
+   (reify QueryContext
+     (-wrap-query [_ q [sym]]
        (reify DataQuery
          (-id [_] (-id q))
          (-default-acceptor [_] (-default-acceptor q))
@@ -189,12 +187,12 @@
                    ::not-found (set-val! v)
                    v           v
                    ::invalid   ::invalid
-                   (set-val! ::invalid))] 
+                   (set-val! ::invalid))]
              (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
-     (-symbol-values [_]
+     (-finalize [_ m]
        (when-let [binds @a-symbol-table]
-         (into
-          {}
+         (into 
+          m
           (filter (fn [[_ v]] (not= ::invalid v)))
           binds))))))
 
@@ -240,16 +238,27 @@
        (option/apply-post #:proc{:type pp-type :val pp-value})))
     q pp-pairs)))
 
+(defn composite-context
+  "returns a composite context which is composed by many contexts"
+  [contexts]
+  (reify
+    QueryContext
+    (-wrap-query [_ q args]
+      (reduce #(-wrap-query %2 % args) q contexts))
+    (-finalize [_ acc]
+      (reduce #(-finalize %2 %) acc contexts))))
+
+
 (defn query-maker
   "returns a query making function which takes a vector as argment and construct a query."
   []
-  (let [named-fac   (named-query-factory)
+  (let [context   (named-query-factory)
         f-map {:fn     fn-query
                :vec    vector-query
                :join   join-query
                :filter filter-query
                :seq    seq-query
-               :named  (partial -named-query named-fac)
+               :named  (fn [q & args] (-wrap-query context q args))
                :deco   decorate-query}]
     (fn [[query-type & args]]
       (with-meta
@@ -257,8 +266,7 @@
           (if f
             (apply f args)
             (throw (ex-info "unknown query type" {:type query-type}))))
-        {::named-query-factory named-fac}))))
+        {::context context}))))
 
 (comment
-  (run-query ((query-maker) :fn :a) {:a 1 :b 2})
-  )
+  (run-query ((query-maker) :fn :a) {:a 1 :b 2}))
