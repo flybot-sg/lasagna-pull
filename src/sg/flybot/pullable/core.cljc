@@ -33,8 +33,8 @@
 
 (defprotocol QueryContext
   "A shared context between subqueries"
-  (-wrap-query [context query args] 
-               "returns a wrapped query from `query` and optional arguments `args`")
+  (-wrap-query [context query args]
+    "returns a wrapped query from `query` and optional arguments `args`")
   (-finalize [context m] "returns a map when queries are done on map `m`"))
 
 (defn run-query
@@ -176,33 +176,29 @@
   ([a-symbol-table]
    (reify QueryContext
      (-wrap-query
-      [_ q [sym]]
-      (reify DataQuery
-        (-id [_] (-id q))
-        (-default-acceptor [_] (-default-acceptor q))
-        (-run [this data acceptor]
-          (let [v        (-run q data (value-acceptor))
-                old-v    (get @a-symbol-table sym ::not-found)
-                set-val! #(do (swap! a-symbol-table assoc sym %) %)
-                rslt
-                (condp = old-v
-                  ::not-found (set-val! v)
-                  v           v
-                  ::invalid   ::invalid
-                  (set-val! ::invalid))]
-            (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt)))))
+       [_ q [sym]]
+       (if-not sym
+         q
+         (reify DataQuery
+           (-id [_] (-id q))
+           (-default-acceptor [_] (-default-acceptor q))
+           (-run [this data acceptor]
+             (let [v        (-run q data (value-acceptor))
+                   old-v    (get @a-symbol-table sym ::not-found)
+                   set-val! #(do (swap! a-symbol-table assoc sym %) %)
+                   rslt
+                   (condp = old-v
+                     ::not-found (set-val! v)
+                     v           v
+                     ::invalid   ::invalid
+                     (set-val! ::invalid))]
+               (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))
      (-finalize [_ m]
        (when-let [binds @a-symbol-table]
-         (into 
+         (into
           m
           (filter (fn [[_ v]] (not= ::invalid v)))
           binds))))))
-
-(comment
-  (def fac (named-query-factory))
-  (run-query (vector-query [(-named-query fac (fn-query :a) 'a)
-                            (-named-query fac (fn-query :b) 'b)]) {:a 2 :b 1})
-  (-symbol-values fac))
 
 ;;### post-process-query
 ;; It is common to process data after it matches
@@ -259,6 +255,7 @@
   "returns a query making function which takes a vector as argment and construct a query."
   [context]
   (let [named-fac (named-query-factory)
+        context (composite-context [context named-fac])
         f-map {:fn     fn-query
                :vec    vector-query
                :join   join-query
@@ -270,6 +267,6 @@
       (with-meta
         (let [f (get f-map query-type)]
           (if f
-            (apply f args)
+            (-wrap-query context (apply f args) nil)
             (throw (ex-info "unknown query type" {:type query-type}))))
-        {::context (composite-context [context named-fac])}))))
+        {::context context}))))

@@ -27,10 +27,10 @@ The design purposes of the pulling pattern are:
 
 ## Core Functions
 
- - `query`: Returns a function that can query data.
- - `run`: Runs a query directly.
+ - `query`: Returns a query function that can query data.
+ ~~- `run`: Runs a query directly.~~
 
- Both functions return a pair of resulting data and named bindings. 
+ Run query against data return a pair of resulting data and named bindings. 
 
  - If there are no matches, the resulting data will be `nil`
  - If no named bindings are specified in the pattern, that part will be `nil`.

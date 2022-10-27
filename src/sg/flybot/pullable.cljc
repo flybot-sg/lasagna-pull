@@ -39,10 +39,19 @@
      - Sequence pattern: For sequence of maps, using `[]` to enclose it. Sequence pattern
        can have an optional variable and options. i.e., pattern 
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
-       `[{:a 1} {:a 3} {}]`. "
+       `[{:a 1} {:a 3} {}]`. 
+   
+   Advanced arguments. Sometimes you need subqueries sharing information among them.
+     - `query-wrapper` is function take a query as first argument and abitary arguments, returns a query.
+     - `finalizer` is a function takes a map as argument, returns a map, it will be called at the end of a
+       query running, the result map will be returned as the second of the returned pair.
+   "
   ([pattern]
-   (query pattern nil))
-  ([pattern context]
+   (query pattern nil nil))
+  ([pattern query-wrapper finalizer]
    (fn [data]
-     (let [q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
+     (let [context (reify core/QueryContext
+                     (-wrap-query [_ q args] (if query-wrapper (apply query-wrapper q args) q))
+                     (-finalize [_ m] ((or finalizer identity) m)))
+           q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
        (core/run-bind q data)))))
