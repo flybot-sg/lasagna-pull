@@ -55,3 +55,5 @@
                      (-finalize [_ m] ((or finalizer identity) m)))
            q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
        (core/run-bind q data)))))
+
+(def post-process-query core/post-process-query)

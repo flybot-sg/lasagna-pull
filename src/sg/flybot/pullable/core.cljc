@@ -48,7 +48,7 @@
   [q data]
   (let [fac (some-> q meta ::context)
         rslt (run-query q data)
-        m   (-finalize fac {})]
+        m (-finalize fac {})]
     [rslt m]))
 
 ;; Implementation
@@ -194,11 +194,12 @@
                      (set-val! ::invalid))]
                (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))
      (-finalize [_ m]
-       (when-let [binds @a-symbol-table]
+       (if-let [binds @a-symbol-table]
          (into
           m
           (filter (fn [[_ v]] (not= ::invalid v)))
-          binds))))))
+          binds)
+         m)))))
 
 ;;### post-process-query
 ;; It is common to process data after it matches
@@ -211,7 +212,7 @@
   "A query decorator post process its result. Given query `child`, the function
    `f-post-process` may change its value and return.
       - child: a query
-      - f-post-process: [:=> [:kv-pair] :any]"
+      - f-post-process: [:=> [:kv-pair] [:kv-pair]]"
   ([child f-post-process]
    (reify DataQuery
      (-id [_] (-id child))
