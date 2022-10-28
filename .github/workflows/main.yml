@@ -4,7 +4,6 @@ name: CI
 # events but only for the master branch
 on:
   push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
 
@@ -23,14 +22,14 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
-    - uses: DeLaGuardo/setup-clojure@3.5
+    - uses: DeLaGuardo/setup-clojure@9.5
       with:
-        tools-deps: '1.10.3.981'
-    - uses: actions/cache@v2
+        tools-deps: '1.11.1.1165'
+    - uses: actions/cache@v3
       with:
         path: ~/.m2
         key: default-build
     - run: clojure -T:build ci
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@v3

@@ -8,8 +8,7 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]
-   [sg.flybot.pullable.schema :as sch]))
+   [sg.flybot.pullable.pattern :as ptn]))
 
 ;;## Glue code 
 
@@ -40,32 +39,21 @@
      - Sequence pattern: For sequence of maps, using `[]` to enclose it. Sequence pattern
        can have an optional variable and options. i.e., pattern 
        `'[{:a ?} ?]` on `[{:a 1} {:a 3} {}]` has a matching result of
-       `[{:a 1} {:a 3} {}]`. "
-  [pattern & [schema]]
-  (fn [data]
-    (let [p ((sch/pattern-validator schema) pattern)]
-      (if (:error p)
-        p
-        (let [query-maker (core/query-maker)
-              q           (ptn/->query query-maker pattern ptn/filter-maker)]
-          (core/run-bind q data))))))
+       `[{:a 1} {:a 3} {}]`. 
+   
+   Advanced arguments. Sometimes you need subqueries sharing information among them.
+     - `query-wrapper` is function take a query as first argument and abitary arguments, returns a query.
+     - `finalizer` is a function takes a map as argument, returns a map, it will be called at the end of a
+       query running, the result map will be returned as the second of the returned pair.
+   "
+  ([pattern]
+   (query pattern nil nil))
+  ([pattern query-wrapper finalizer]
+   (fn [data]
+     (let [context (reify core/QueryContext
+                     (-wrap-query [_ q args] (if query-wrapper (apply query-wrapper q args) q))
+                     (-finalize [_ m] ((or finalizer identity) m)))
+           q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
+       (core/run-bind q data)))))
 
-(defn run
-  "Given `data`, validate and compile `pattern` if it has not been, run it, try to match with `data`.
-   Returns a vector of matching result (same structure as data) and a map of logical
-   variable bindings.
-   An optional malli `schema` can be provided to ensure the shape of the data to be pulled.
-   Returns the error pattern if it is not valid."
-  ([pattern data]
-   (run pattern nil data))
-  ([pattern schema data]
-   ((query pattern schema) data)))
-
-(comment
-  (run '{:a ?} {:a 3 :b 2})
-  (run '{:a 3 :b ?} {:a 3 :b 1})
-  (run '{:a ?a :b ?a} {:a 3 :b 2 :c 3})
-  (run '{:a {:b ?}} {:a {:b 1 :c 2}})
-  (run '{:a {:b {:c ?c}} :d {:e ?e}} {:a {:b {:c 5}} :d {:e 2}})
-  (run '{:a ?x :b ?x} {:a 2 :b 3})
-  (run '[{(:a :not-found ::ok) ?} ?a] [{:a 1} {:a 3} {}]))
+(def post-process-query core/post-process-query)

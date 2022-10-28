@@ -3,28 +3,24 @@
    [sg.flybot.pullable :as sut]
    [clojure.test :refer [deftest are testing is]]))
 
-(deftest query
-  (testing "`query` can precompile and run"
-    (is (= [{:a 1} nil] ((sut/query '{:a ?}) {:a 1})))))
-
 (deftest ^:integrated run
   (testing "Pattern is valid and pull the expected data."
-    (are [data x exp] (= exp (sut/run x data))
+    (are [data x exp] (= exp ((sut/query x) data))
       ;;basic patterns
-      {:a 1}           '{:a ?}        [{:a 1} nil]
-      {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} nil]
+      {:a 1}           '{:a ?}        [{:a 1} {}]
+      {:a 1 :b 2 :c 3} '{:a ? :b ?}   [{:a 1 :b 2} {}]
 
       ;;filtered
-      {:a 1 :b 2}      '{:a ? :b 1}   [nil nil]
+      {:a 1 :b 2}      '{:a ? :b 1}   [nil {}]
 
       ;;filter with a function
-      {:a 8 :b 2}      {:a '? :b even?} [{:a 8} nil]
+      {:a 8 :b 2}      {:a '? :b even?} [{:a 8} {}]
 
       ;;guard clause
-      {:a 2}           {(list :a :when even?) '?}  [{:a 2} nil]
+      {:a 2}           {(list :a :when even?) '?}  [{:a 2} {}]
 
       ;;guard with not-found
-      {:a 1}           {(list :a :when even? :not-found 0) '?}  [{:a 0} nil]
+      {:a 1}           {(list :a :when even? :not-found 0) '?}  [{:a 0} {}]
 
       ;;with option
       {:a inc}
@@ -33,21 +29,21 @@
 
       {:a identity}
       '{(:a :with [{:b 2 :c 3}]) {:b ?}}
-      [{:a {:b 2}} nil]
+      [{:a {:b 2}} {}]
 
       ;;seq query
       [{:a 1} {:a 2 :b 2} {}]
       '[{:a ?}]
-      [[{:a 1} {:a 2} {}] nil]
+      [[{:a 1} {:a 2} {}] {}]
 
       ;;nested map query
       {:a {:b 1 :c 2}}
       '{:a {:b ?}}
-      [{:a {:b 1}} nil]
+      [{:a {:b 1}} {}]
 
       {:a {:b [{:c 1 :d 5} {:c 2}]}}
       '{:a {:b [{:c ?}]}}
-      [{:a {:b [{:c 1} {:c 2}]}} nil]
+      [{:a {:b [{:c 1} {:c 2}]}} {}]
 
       ;;named variable
       {:a 1 :b 2}
@@ -74,15 +70,16 @@
       (for [x (range 10)]
         {:a x :b x})
       '[{:a ? :b ?} ? :seq [2 3]]
-      [[{:a 2 :b 2} {:a 3 :b 3} {:a 4 :b 4}] nil]
+      [[{:a 2 :b 2} {:a 3 :b 3} {:a 4 :b 4}] {}]
 
       ;;batch option
       {:a identity}
       '{(:a :batch [[3] [{:ok 1}]]) ?a}
-      [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}]))
-  
-  (testing "Pattern respects the given data-schema."
-    (is (= [{:a 1} '{?a 1}]
-           (sut/run {:a '?a} [:map [:a :int]] {:a 1}))))
-  (testing "Pattern invalid so returns error."
-    (is (:error (sut/run {:a '?a} [:map [:b :int]] {:a 1})))))
+      [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}])))
+
+(deftest query-with-context
+  (let [shared (transient []) 
+        qr (sut/query '{:a ? :b ?} 
+                      (fn [q] (sut/post-process-query q (fn [[k v]] (when (number? v) (conj! shared v)) [k v])))
+                      #(assoc % :shared (persistent! shared)))]
+    (is (= [{:a 3 :b 4} {:shared [3 4]}] (qr {:a 3 :b 4})))))

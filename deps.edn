@@ -1,13 +1,12 @@
 {:paths ["src"]
  :deps
- {metosin/malli {:mvn/version "0.8.8"}}
+ {}
  :aliases
  {:dev
   {:extra-paths ["test"]
-   :extra-deps {com.github.jpmonettas/flow-storm-dbg {:mvn/version "2.2.99"}
-                com.github.jpmonettas/flow-storm-inst {:mvn/version "2.2.99"}}}
+   :extra-deps {metosin/malli {:mvn/version "0.9.2"}}}
   :test
-  {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.60.977"}
+  {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.70.1086"}
                 lambdaisland/kaocha-cloverage {:mvn/version "1.0.75"}}
    :main-opts  ["-m" "kaocha.runner"]}
   :cljs-test
@@ -15,6 +14,6 @@
    :extra-deps  {olical/cljs-test-runner {:mvn/version "3.8.0"}}
    :main-opts   ["-m" "cljs-test-runner.main"]}
   :build
-  {:deps {io.github.seancorfield/build-clj {:git/tag "v0.6.6" :git/sha "171d5f1"}
+  {:deps {io.github.seancorfield/build-clj {:git/tag "v0.8.3" :git/sha "7ac1f8d"}
           marginalia/marginalia {:mvn/version "0.9.1"}}
    :ns-default build}}}

@@ -68,14 +68,6 @@
   (testing "seq query throws data error on non-sequential data"
     (is (error? (sut/run-query (sut/seq-query (sut/fn-query :a)) {:a 1})))))
 
-(deftest named-query
-  (let [fac (sut/named-query-factory)
-        q (sut/vector-query [(sut/-named-query fac (sut/fn-query :a) '?a)
-                             (sut/-named-query fac (sut/fn-query :b) '?a)])]
-    (are [exp data] (= exp [(sut/run-query q data) (sut/-symbol-values fac)])
-      [{:a 3 :b 3} '{?a 3}] {:a 3 :b 3}
-      [nil {}]      {:a 3 :b 2})))
-
 (deftest apply-post-watch 
   (testing "watch option registers a watcher on IRef, 
             when watcher returns nil, it removes the watcher"
