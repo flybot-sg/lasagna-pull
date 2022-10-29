@@ -50,10 +50,12 @@
    (query pattern nil nil))
   ([pattern query-wrapper finalizer]
    (fn [data]
-     (let [context (reify core/QueryContext
-                     (-wrap-query [_ q args] (if query-wrapper (apply query-wrapper q args) q))
-                     (-finalize [_ m] ((or finalizer identity) m)))
+     (let [context (core/named-query-factory)
            q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
        (core/run-bind q data)))))
 
 (def post-process-query core/post-process-query)
+
+(defn coeffects
+  "given co-effects function f, returns a query-wrapper"
+  [f])

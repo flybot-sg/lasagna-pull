@@ -33,8 +33,8 @@
 
 (defprotocol QueryContext
   "A shared context between subqueries"
-  (-wrap-query [context query args]
-    "returns a wrapped query from `query` and optional arguments `args`")
+  (-create-query [context query-type args]
+    "returns a query of keyword `query-type` and optional `args` vector")
   (-finalize [context m] "returns a map when queries are done on map `m`"))
 
 (defn run-query
@@ -168,39 +168,6 @@
   (run-query (vector-query [(filter-query (fn-query :a) odd?) (fn-query :b)])
              {:a 1 :b 4 :c 5}))
 
-(defn named-query-factory
-  "returns a new NamedQueryFactory
-   - `a-symbol-table`: an atom of map to accept symbol-> val pair"
-  ([]
-   (named-query-factory (atom nil)))
-  ([a-symbol-table]
-   (reify QueryContext
-     (-wrap-query
-       [_ q [sym]]
-       (if-not sym
-         q
-         (reify DataQuery
-           (-id [_] (-id q))
-           (-default-acceptor [_] (-default-acceptor q))
-           (-run [this data acceptor]
-             (let [v        (-run q data (value-acceptor))
-                   old-v    (get @a-symbol-table sym ::not-found)
-                   set-val! #(do (swap! a-symbol-table assoc sym %) %)
-                   rslt
-                   (condp = old-v
-                     ::not-found (set-val! v)
-                     v           v
-                     ::invalid   ::invalid
-                     (set-val! ::invalid))]
-               (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))
-     (-finalize [_ m]
-       (if-let [binds @a-symbol-table]
-         (into
-          m
-          (filter (fn [[_ v]] (not= ::invalid v)))
-          binds)
-         m)))))
-
 ;;### post-process-query
 ;; It is common to process data after it matches
 
@@ -237,37 +204,70 @@
        (option/apply-post #:proc{:type pp-type :val pp-value})))
     q pp-pairs)))
 
-(defn composite-context
-  "returns a composite context which is composed by many contexts"
-  [contexts]
-  (reify
-    QueryContext
-    (-wrap-query [_ q args]
-      (reduce #(-wrap-query %2 % args) q contexts))
-    (-finalize [_ acc]
-      (reduce #(-finalize %2 %) acc contexts))))
+(defn default-query-of
+  "returns a query which takes no context info"
+  [query-type args]
+  (let [f-map
+        {:fn     fn-query
+         :vec    vector-query
+         :join   join-query
+         :filter filter-query
+         :seq    seq-query
+         :deco   decorate-query}]
+    (if-let [f (get f-map query-type)]
+      (apply f args)
+      (throw (ex-info "Unknown query type" {:type query-type})))))
 
-(extend-protocol QueryContext
-  nil
-  (-wrap-query [_ q _] q)
-  (-finalize [_ m] m))
+(defn stateless-context
+  "returns a stateless context"
+  []
+  (reify QueryContext
+    (-create-query [_ query-type args]
+      (default-query-of query-type args))
+    (-finalize [_ m]
+      m)))
+
+(defn named-query-factory
+  "returns a new NamedQueryFactory
+   - `a-symbol-table`: an atom of map to accept symbol-> val pair"
+  ([]
+   (named-query-factory (stateless-context)))
+  ([parent-context]
+   (named-query-factory parent-context (atom nil)))
+  ([parent-context a-symbol-table]
+   (reify QueryContext
+     (-create-query
+       [_ query-type args]
+       (if (not= :named query-type)
+         (-create-query parent-context query-type args)
+         (let [[q sym] args]
+           (if-not sym
+             q
+             (reify DataQuery
+               (-id [_] (-id q))
+               (-default-acceptor [_] (-default-acceptor q))
+               (-run [this data acceptor]
+                 (let [v        (-run q data (value-acceptor))
+                       old-v    (get @a-symbol-table sym ::not-found)
+                       set-val! #(do (swap! a-symbol-table assoc sym %) %)
+                       rslt
+                       (condp = old-v
+                         ::not-found (set-val! v)
+                         v           v
+                         ::invalid   ::invalid
+                         (set-val! ::invalid))]
+                   (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))))
+     (-finalize [_ m]
+       (if-let [binds @a-symbol-table]
+         (into
+          m
+          (filter (fn [[_ v]] (not= ::invalid v)))
+          binds)
+         m)))))
 
 (defn query-maker
   "returns a query making function which takes a vector as argment and construct a query."
   [context]
-  (let [named-fac (named-query-factory)
-        context (composite-context [context named-fac])
-        f-map {:fn     fn-query
-               :vec    vector-query
-               :join   join-query
-               :filter filter-query
-               :seq    seq-query
-               :named  (fn [q & args] (-wrap-query named-fac q args))
-               :deco   decorate-query}]
-    (fn [[query-type & args]]
-      (with-meta
-        (let [f (get f-map query-type)]
-          (if f
-            (-wrap-query context (apply f args) nil)
-            (throw (ex-info "unknown query type" {:type query-type}))))
-        {::context context}))))
+  (fn [[query-type & args]]
+    (with-meta (-create-query context query-type args)
+      {::context context})))

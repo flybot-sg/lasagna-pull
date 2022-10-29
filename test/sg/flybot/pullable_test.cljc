@@ -77,9 +77,17 @@
       '{(:a :batch [[3] [{:ok 1}]]) ?a}
       [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}])))
 
-(deftest query-with-context
-  (let [shared (transient []) 
-        qr (sut/query '{:a ? :b ?} 
+#_(deftest query-with-context
+  "context"
+  (let [shared (transient [])
+        qr (sut/query '{:a ? :b ?}
                       (fn [q] (sut/post-process-query q (fn [[k v]] (when (number? v) (conj! shared v)) [k v])))
                       #(assoc % :shared (persistent! shared)))]
     (is (= [{:a 3 :b 4} {:shared [3 4]}] (qr {:a 3 :b 4})))))
+
+#_(deftest query-with-coeffect
+  "Coeffects collecting is a very common scenario"
+  (let [shared (atom 0)
+        fx (fn [f args] (swap! shared f args))
+        qr (sut/query '{(:+ :with [5]) ? (:* :with [8]) ?} (sut/coeffects fx))]
+    (is (= [{:a 40 :b 40} {}] (qr {:+ (fn [x] [+ x]) :b (fn [x] [* x])})))))
