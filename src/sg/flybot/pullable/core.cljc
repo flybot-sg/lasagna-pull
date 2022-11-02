@@ -7,7 +7,8 @@
    A query is a function which can extract k v from data."
   (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
-   [sg.flybot.pullable.core.option :as option]))
+   [sg.flybot.pullable.core.option :as option]
+   #?(:clj [robertluo.fun-map :as fm])))
 
 (defprotocol Acceptor
   "An acceptor receives information"
@@ -73,7 +74,7 @@
   ([k f]
    (reify DataQuery
      (-id [_] k)
-     (-default-acceptor [_] (map-acceptor {}))
+     (-default-acceptor [_] (map-acceptor #?(:clj (fm/fun-map {}) :cljs {})))
      (-run [_ data acceptor]
        (-accept acceptor k (f data))))))
 
@@ -122,7 +123,7 @@
         (fn
           ([acc] acc)
           ([acc item] (if item (merge acc item) (reduced nil))))
-        {}
+        #?(:clj (fm/fun-map {}) :cljs {})
         queries)))))
 
 (comment
@@ -264,6 +265,62 @@
           (filter (fn [[_ v]] (not= ::invalid v)))
           binds)
          m)))))
+
+(defrecord Coeffect [effect fetch-fn])
+(def coeffect
+  "returns a co-effect object"
+  ->Coeffect)
+
+(defn co-effect? 
+  [x]
+  (instance? Coeffect x))
+
+(defprotocol EffectExecutor
+  ""
+  (-receive-effect [executor workload])
+  (-run! [executor]))
+
+(defrecord AtomExecutor [tasks db]
+  EffectExecutor
+  (-receive-effect
+   [_ workload]
+   (swap! tasks conj workload))
+  (-run!
+   [_]
+   (letfn [(updating [val] (reduce (fn [acc [f & args]] (apply f acc args)) val @tasks))]
+     (swap! db updating))))
+
+(defn atom-executor [db]
+  (AtomExecutor. (atom []) db))
+
+(comment
+  (def ex (atom-executor (atom 0)))
+  (do (-receive-effect ex [+ 5])
+      (-receive-effect ex [* 8])
+      (-run! ex))
+  )
+
+(defn coeffects-context
+  "returns a co-effective context derived from `parent-context`"
+  [parent-context executor]
+  (reify QueryContext
+    (-create-query [_ query-type args]
+      (let [q (-create-query parent-context query-type args)]
+        (reify DataQuery
+          (-id [_] (-id q))
+          (-default-acceptor [_] (-default-acceptor q))
+          (-run [_ data acceptor]
+            (let [[k v] (-run q data (vector-acceptor))]
+              (if-not (co-effect? v)
+                (-accept acceptor k v)
+                (do
+                  (-receive-effect executor (:effect v))
+                  (-accept acceptor k (delay ((:fetch-fn v)))))))))))
+    (-finalize
+     [_ m]
+     (do
+       (-run! executor)
+       (-finalize parent-context m)))))
 
 (defn query-maker
   "returns a query making function which takes a vector as argment and construct a query."

@@ -85,9 +85,11 @@
                       #(assoc % :shared (persistent! shared)))]
     (is (= [{:a 3 :b 4} {:shared [3 4]}] (qr {:a 3 :b 4})))))
 
-#_(deftest query-with-coeffect
-  "Coeffects collecting is a very common scenario"
-  (let [shared (atom 0)
-        fx (fn [f args] (swap! shared f args))
-        qr (sut/query '{(:+ :with [5]) ? (:* :with [8]) ?} (sut/coeffects fx))]
-    (is (= [{:a 40 :b 40} {}] (qr {:+ (fn [x] [+ x]) :b (fn [x] [* x])})))))
+(deftest query-with-coeffect
+  (testing "Coeffects collecting is a very common scenario"
+    (let [shared (atom 0) 
+          qr (sut/query '{(:a :with [5]) ? (:b :with [8]) ?}
+                        (sut/coeffects-context (sut/named-context) (sut/atom-executor shared)))]
+      ;;TODO deref shared state may not be appropriate in many scenerios
+      (is (= [{:a 40 :b 40} {}] (qr {:a (fn [x] (sut/coeffect [+ x] #(deref shared)))
+                                     :b (fn [x] (sut/coeffect [* x] #(deref shared)))}))))))

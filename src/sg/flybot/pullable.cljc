@@ -42,20 +42,18 @@
        `[{:a 1} {:a 3} {}]`. 
    
    Advanced arguments. Sometimes you need subqueries sharing information among them.
-     - `query-wrapper` is function take a query as first argument and abitary arguments, returns a query.
+     - `query-maker` is function takes keyword `query-type` and abitary arguments, returns a query.
      - `finalizer` is a function takes a map as argument, returns a map, it will be called at the end of a
        query running, the result map will be returned as the second of the returned pair.
    "
   ([pattern]
-   (query pattern nil nil))
-  ([pattern query-wrapper finalizer]
+   (query pattern (core/named-query-factory)))
+  ([pattern context]
    (fn [data]
-     (let [context (core/named-query-factory)
-           q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
+     (let [q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
        (core/run-bind q data)))))
 
-(def post-process-query core/post-process-query)
-
-(defn coeffects
-  "given co-effects function f, returns a query-wrapper"
-  [f])
+(def coeffect core/coeffect)
+(def named-context core/named-query-factory)
+(def coeffects-context core/coeffects-context)
+(def atom-executor core/atom-executor)
