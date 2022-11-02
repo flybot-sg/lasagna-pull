@@ -276,9 +276,10 @@
   (instance? Coeffect x))
 
 (defprotocol EffectExecutor
-  ""
-  (-receive-effect [executor workload])
-  (-run! [executor]))
+  "An executor to accumulate effects and run it in batch (transaction)"
+  (-receive-effect [executor workload] "receive `workload`, returns false if fails")
+  (-run! [executor] "runs the accumulated workloads")
+  (-result [executor] "returns the result of `-run!` method"))
 
 (defrecord AtomExecutor [tasks db]
   EffectExecutor
@@ -288,7 +289,8 @@
   (-run!
    [_]
    (letfn [(updating [val] (reduce (fn [acc [f & args]] (apply f acc args)) val @tasks))]
-     (swap! db updating))))
+     (swap! db updating)))
+  (-result [_] @db))
 
 (defn atom-executor [db]
   (AtomExecutor. (atom []) db))
@@ -315,7 +317,7 @@
                 (-accept acceptor k v)
                 (do
                   (-receive-effect executor (:effect v))
-                  (-accept acceptor k (delay ((:fetch-fn v)))))))))))
+                  (-accept acceptor k (delay ((:fetch-fn v) (-result executor)))))))))))
     (-finalize
      [_ m]
      (do
