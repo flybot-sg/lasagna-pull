@@ -77,12 +77,11 @@
       '{(:a :batch [[3] [{:ok 1}]]) ?a}
       [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}])))
 
-#?(:clj
-   (deftest query-with-coeffect
-     (testing "Coeffects collecting is a very common scenario"
-       (let [shared (atom 0)
-             qr (sut/query '{(:a :with [5]) ? (:b :with [8]) ?}
-                           (sut/coeffects-context (sut/named-context) (sut/atom-executor shared)))]
+(deftest query-with-coeffect
+  (testing "Coeffects collecting is a very common scenario"
+    (let [shared (atom 0)
+          qr (sut/query '{(:a :with [5]) ? (:b :with [8]) ?}
+                        (sut/coeffects-context (sut/named-context) (sut/atom-executor shared)))]
       ;;TODO deref shared state may not be appropriate in many scenerios
-         (is (= [{:a 40 :b 40} {}] (qr {:a (fn [x] (sut/coeffect [+ x] identity))
-                                        :b (fn [x] (sut/coeffect [* x] (fn [_] (deref shared))))})))))))
+      (is (= [{:a 40 :b 40} {}] (qr {:a (fn [x] (sut/coeffect [+ x] identity))
+                                     :b (fn [x] (sut/coeffect [* x] (fn [_] (deref shared))))}))))))

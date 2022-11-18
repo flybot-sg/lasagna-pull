@@ -8,7 +8,7 @@
   (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
    [sg.flybot.pullable.core.option :as option]
-   #?(:clj [robertluo.fun-map :as fm])))
+   [robertluo.fun-map :as fm]))
 
 (defprotocol Acceptor
   "An acceptor receives information"
@@ -74,7 +74,7 @@
   ([k f]
    (reify DataQuery
      (-id [_] k)
-     (-default-acceptor [_] (map-acceptor #?(:clj (fm/fun-map {}) :cljs {})))
+     (-default-acceptor [_] (map-acceptor (fm/fun-map {})))
      (-run [_ data acceptor]
        (-accept acceptor k (f data))))))
 
@@ -123,7 +123,7 @@
         (fn
           ([acc] acc)
           ([acc item] (if item (merge acc item) (reduced nil))))
-        #?(:clj (fm/fun-map {}) :cljs {})
+        (fm/fun-map {})
         queries)))))
 
 (comment

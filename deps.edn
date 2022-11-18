@@ -1,7 +1,7 @@
 ;; Dependencies configuration for clojure tools dep
 {:paths ["src"]
  :deps
- {robertluo/fun-map {:mvn/version "0.4.5"}}
+ {robertluo/fun-map {:mvn/version "0.5.110"}}
  :aliases
  {:dev ;Alias for development
   {:extra-paths ["test"]
