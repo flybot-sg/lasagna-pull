@@ -8,6 +8,7 @@
   (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
    [sg.flybot.pullable.core.option :as option]
+   [sg.flybot.pullable.core.executor :as executor]
    [robertluo.fun-map :as fm]))
 
 (defprotocol Acceptor
@@ -275,33 +276,6 @@
   [x]
   (instance? Coeffect x))
 
-(defprotocol EffectExecutor
-  "An executor to accumulate effects and run it in batch (transaction)"
-  (-receive-effect [executor workload] "receive `workload`, returns false if fails")
-  (-run! [executor] "runs the accumulated workloads")
-  (-result [executor] "returns the result of `-run!` method"))
-
-(defrecord AtomExecutor [tasks db]
-  EffectExecutor
-  (-receive-effect
-   [_ workload]
-   (swap! tasks conj workload))
-  (-run!
-   [_]
-   (letfn [(updating [val] (reduce (fn [acc [f & args]] (apply f acc args)) val @tasks))]
-     (swap! db updating)))
-  (-result [_] @db))
-
-(defn atom-executor [db]
-  (AtomExecutor. (atom []) db))
-
-(comment
-  (def ex (atom-executor (atom 0)))
-  (do (-receive-effect ex [+ 5])
-      (-receive-effect ex [* 8])
-      (-run! ex))
-  )
-
 (defn coeffects-context
   "returns a co-effective context derived from `parent-context`"
   [parent-context executor]
@@ -316,12 +290,12 @@
               (if-not (co-effect? v)
                 (-accept acceptor k v)
                 (do
-                  (-receive-effect executor (:effect v))
-                  (-accept acceptor k (delay ((:fetch-fn v) (-result executor)))))))))))
+                  (executor/-receive-effect executor (:effect v))
+                  (-accept acceptor k (delay ((:fetch-fn v) (executor/-result executor)))))))))))
     (-finalize
      [_ m]
      (do
-       (-run! executor)
+       (executor/-run! executor)
        (-finalize parent-context m)))))
 
 (defn query-maker
