@@ -8,7 +8,6 @@
   (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
    [sg.flybot.pullable.core.option :as option]
-   [sg.flybot.pullable.core.executor :as executor]
    [robertluo.fun-map :as fm]))
 
 (defprotocol Acceptor
@@ -33,25 +32,12 @@
   nil
   (-accept [_ _ _] nil))
 
-(defprotocol QueryContext
-  "A shared context between subqueries"
-  (-create-query [context query-type args]
-    "returns a query of keyword `query-type` and optional `args` vector")
-  (-finalize [context m] "returns a map when queries are done on map `m`"))
-
 (defn run-query
   "runs a query `q` on `data` using `acceptor` (when nil uses q's default acceptor)"
   ([q data]
    (run-query q data nil))
   ([q data acceptor]
    (-run q data (or acceptor (-default-acceptor q)))))
-
-(defn run-bind
-  [q data]
-  (let [fac (some-> q meta ::context)
-        rslt (run-query q data)
-        m (-finalize fac {})]
-    [rslt m]))
 
 ;; Implementation
 
@@ -219,88 +205,3 @@
     (if-let [f (get f-map query-type)]
       (apply f args)
       (throw (ex-info "Unknown query type" {:type query-type})))))
-
-(defn stateless-context
-  "returns a stateless context"
-  []
-  (reify QueryContext
-    (-create-query [_ query-type args]
-      (default-query-of query-type args))
-    (-finalize [_ m]
-      m)))
-
-(defn named-query-factory
-  "returns a new NamedQueryFactory
-   - `a-symbol-table`: an atom of map to accept symbol-> val pair"
-  ([]
-   (named-query-factory (stateless-context)))
-  ([parent-context]
-   (named-query-factory parent-context (atom nil)))
-  ([parent-context a-symbol-table]
-   (reify QueryContext
-     (-create-query
-       [_ query-type args]
-       (if (not= :named query-type)
-         (-create-query parent-context query-type args)
-         (let [[q sym] args]
-           (if-not sym
-             q
-             (reify DataQuery
-               (-id [_] (-id q))
-               (-default-acceptor [_] (-default-acceptor q))
-               (-run [this data acceptor]
-                 (let [v        (-run q data (value-acceptor))
-                       old-v    (get @a-symbol-table sym ::not-found)
-                       set-val! #(do (swap! a-symbol-table assoc sym %) %)
-                       rslt
-                       (condp = old-v
-                         ::not-found (set-val! v)
-                         v           v
-                         ::invalid   ::invalid
-                         (set-val! ::invalid))]
-                   (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))))
-     (-finalize [_ m]
-       (if-let [binds @a-symbol-table]
-         (into
-          m
-          (filter (fn [[_ v]] (not= ::invalid v)))
-          binds)
-         m)))))
-
-(defrecord Coeffect [effect fetch-fn])
-(def coeffect
-  "returns a co-effect object"
-  ->Coeffect)
-
-(defn co-effect? 
-  [x]
-  (instance? Coeffect x))
-
-(defn coeffects-context
-  "returns a co-effective context derived from `parent-context`"
-  [parent-context executor]
-  (reify QueryContext
-    (-create-query [_ query-type args]
-      (let [q (-create-query parent-context query-type args)]
-        (reify DataQuery
-          (-id [_] (-id q))
-          (-default-acceptor [_] (-default-acceptor q))
-          (-run [_ data acceptor]
-            (let [[k v] (-run q data (vector-acceptor))]
-              (if-not (co-effect? v)
-                (-accept acceptor k v)
-                (do
-                  (executor/-receive-effect executor (:effect v))
-                  (-accept acceptor k (delay ((:fetch-fn v) (executor/-result executor)))))))))))
-    (-finalize
-     [_ m]
-     (do
-       (executor/-run! executor)
-       (-finalize parent-context m)))))
-
-(defn query-maker
-  "returns a query making function which takes a vector as argment and construct a query."
-  [context]
-  (fn [[query-type & args]]
-    (with-meta (-create-query context query-type args)
-      {::context context})))

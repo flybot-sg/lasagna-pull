@@ -1,4 +1,4 @@
-(ns sg.flybot.pullable.executor
+(ns sg.flybot.pullable.context.executor
   "Protocols and reference implentations for co-effects executor.
    
    A co-effects collect workloads from queries, postpone the execution

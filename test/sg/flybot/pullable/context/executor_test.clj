@@ -1,7 +1,7 @@
-(ns sg.flybot.pullable.executor-test
+(ns sg.flybot.pullable.context.executor-test
   (:require
    [clojure.test :refer [deftest testing is]]
-   [sg.flybot.pullable.executor :as sut]))
+   [sg.flybot.pullable.context.executor :as sut]))
 
 (deftest atom-executor
   (testing "atom executor collect workloads and run it all"
