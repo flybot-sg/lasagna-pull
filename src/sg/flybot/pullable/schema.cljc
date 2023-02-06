@@ -44,11 +44,11 @@
                [:cat [:= :default] :any]
                [:cat [:= :not-found] :any]
                [:cat [:= :when] fn?]
-               [:cat [:= :seq] vector?]
+               [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]
                [:cat [:= :with] vector?]
-               [:cat [:= :batch] vector?]]
+               [:cat [:= :batch] [:vector vector?]]]
    ::key      [:orn
-               [:k :keyword]
+               [:k [:not list?]]
                [:k-with [:catn
                          [:k :keyword]
                          [:options [:* ::option]]]]]
@@ -61,10 +61,7 @@
                [:filter :any]]
    ::vector   [:map-of ::key ::val]
    ::seq-args [:cat 
-               [:?
-                [:alt
-                 [:= '?]
-                 [:fn lvar?]]]
+               [:? ::var]
                [:* ::option]]
    ::seq      [:cat
                ::vector
