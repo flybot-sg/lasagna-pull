@@ -66,7 +66,8 @@
       :map
       (merge 
        reg
-       {::pattern [:map {:closed true} 
+       {}
+       #_{::pattern [:map {:closed true} 
                    (map (fn [x]
                           (prn x)
                           (let [[n t] (m/children x)]
@@ -83,13 +84,14 @@
       (m/schema)))
 
 (defn walking [?schema]
-  (let [reg (atom fixed)]
+  (let [reg (transient fixed)
+        merge! (fn [m] (reduce conj! reg m))]
     (m/walk
      ?schema
-     (fn [s _ children _]
-       (swap! reg shape-related s)
+     (fn [s _ _ _]
+       (merge! (shape-related reg s))
        s))
-    @reg))
+    (persistent! reg)))
 
 (comment
   (type-related :any)
