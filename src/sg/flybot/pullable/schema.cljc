@@ -42,7 +42,8 @@
   [type-id]
   (let [t (if (= :any type-id) [:not list?] type-id)]
     {::key [:or t [:cat t [:* ::option]]]
-     ::val      [:or ::var [:ref ::pattern] type-id]}))
+     ::val [:or ::var [:ref ::pattern] type-id]}))
+
 (def fixed
   {::option   [:alt [:cat [:= :when] fn?]]
    ::var      [:or [:= '?] [:fn lvar?]]
@@ -50,33 +51,53 @@
    ::seq      [:cat ::vector ::seq-args]})
 
 (defn shape-related
-  [data-schema]
-  (merge
-   fixed
-   (case (m/type data-schema)
-     :map-of
-     (let [key-type (-> (m/children data-schema) (first) (m/type))]
-       (merge
-        {::vector   [:map-of ::key ::val]
-         ::pattern  [:or ::vector ::seq]}
-        (type-related key-type)))
-     
-     :map
-     (let [key-types (map (fn [sch] ) m/children)])
-     ;;else
-     {::pattern [:map {:closed true}]})))
+  [reg data-schema]
+  (let [t (m/type data-schema)
+        custom-type-name #(keyword "custom" (name %))]
+    (case t
+      :map-of
+      (let [key-type (-> (m/children data-schema) (first) (m/type))]
+        (merge
+         reg
+         {::vector   [:map-of ::key ::val]
+          ::pattern  [:or ::vector ::seq]}
+         (type-related key-type)))
+      
+      :map
+      (merge 
+       reg
+       {::pattern [:map {:closed true} 
+                   (map (fn [x]
+                          (prn x)
+                          (let [[n t] (m/children x)]
+                            [n {:optional true} (custom-type-name t)]))
+                        (m/entries data-schema))]})
+      
+      (if (get reg t)
+        reg
+        (assoc reg (custom-type-name t) (type-related t))))))
 
-(defn general-schema
-  []
-  (-> [:schema {:registry (shape-related [:map-of :any :any])} ::pattern]
+(defn schema-of
+  [reg]
+  (-> [:schema {:registry reg} ::pattern]
       (m/schema)))
+
+(defn walking [?schema]
+  (let [reg (atom fixed)]
+    (m/walk
+     ?schema
+     (fn [s _ children _]
+       (swap! reg shape-related s)
+       s))
+    @reg))
 
 (comment
   (type-related :any)
-  (shape-related [:map-of :any :any]) 
-  (shape-related [:map [:a :int]])
-  (def gen-ptn (general-schema))
-  (m/validate gen-ptn '{:a ?})
+  (shape-related fixed [:map-of :any :any]) 
+  (shape-related fixed :int)
+  (schema-of (walking [:map [:a :int] [:b :string]]))
+  (def gen-ptn (schema-of (shape-related fixed [:map-of :any :any])))
+  (m/validate gen-ptn '[{:a ?}])
   )
 
 (def general-pattern-registry
