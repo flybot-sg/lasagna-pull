@@ -41,8 +41,7 @@
 (defn type-related
   [type-id]
   (let [t (if (= :any type-id) [:not list?] type-id)]
-    {::key-type t
-     ::key [:or ::key-type [:cat t [:* ::option]]]
+    {::key [:or t [:cat t [:* ::option]]]
      ::val      [:or ::var [:ref ::pattern] type-id]}))
 (def fixed
   {::option   [:alt [:cat [:= :when] fn?]]
@@ -52,14 +51,32 @@
 
 (defn shape-related
   [data-schema]
-  (if (= :map-of (m/type data-schema))
-    (let [key-type (-> (m/children data-schema) (first))]
-      {::vector   [:map-of ::key ::val]
-       ::pattern  [:or ::vector ::seq]})
-    {::pattern [:map {:closed true}]}))
+  (merge
+   fixed
+   (case (m/type data-schema)
+     :map-of
+     (let [key-type (-> (m/children data-schema) (first) (m/type))]
+       (merge
+        {::vector   [:map-of ::key ::val]
+         ::pattern  [:or ::vector ::seq]}
+        (type-related key-type)))
+     
+     :map
+     (let [key-types (map (fn [sch] ) m/children)])
+     ;;else
+     {::pattern [:map {:closed true}]})))
+
+(defn general-schema
+  []
+  (-> [:schema {:registry (shape-related [:map-of :any :any])} ::pattern]
+      (m/schema)))
 
 (comment
-  (shape-related [:map-of :any :any])
+  (type-related :any)
+  (shape-related [:map-of :any :any]) 
+  (shape-related [:map [:a :int]])
+  (def gen-ptn (general-schema))
+  (m/validate gen-ptn '{:a ?})
   )
 
 (def general-pattern-registry
