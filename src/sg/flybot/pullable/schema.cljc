@@ -38,27 +38,53 @@
 
 ;;; General pattern
 
+(defn type-related
+  [type-id]
+  (let [t (if (= :any type-id) [:not list?] type-id)]
+    {::key-type t
+     ::key [:or ::key-type [:cat t [:* ::option]]]
+     ::val      [:or ::var [:ref ::pattern] type-id]}))
+(def fixed
+  {::option   [:alt [:cat [:= :when] fn?]]
+   ::var      [:or [:= '?] [:fn lvar?]]
+   ::seq-args [:cat [:? ::var] [:* ::option]]
+   ::seq      [:cat ::vector ::seq-args]})
+
+(defn shape-related
+  [data-schema]
+  (if (= :map-of (m/type data-schema))
+    (let [key-type (-> (m/children data-schema) (first))]
+      {::vector   [:map-of ::key ::val]
+       ::pattern  [:or ::vector ::seq]})
+    {::pattern [:map {:closed true}]}))
+
+(comment
+  (shape-related [:map-of :any :any])
+  )
+
 (def general-pattern-registry
   "general schema registry"
   {::option   [:alt
-               [:cat [:= :default] :any]
-               [:cat [:= :not-found] :any]
+               [:cat [:= :default] ::val-type]
+               [:cat [:= :not-found] ::val-type]
                [:cat [:= :when] fn?]
                [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]
                [:cat [:= :with] vector?]
                [:cat [:= :batch] [:vector vector?]]]
-   ::key      [:orn
-               [:k [:not list?]]
-               [:k-with [:catn
-                         [:k :keyword]
-                         [:options [:* ::option]]]]]
-   ::var      [:orn
-               [:var   [:= '?]]
-               [:named [:fn lvar?]]]
-   ::val      [:orn
+   ::key-type [:not list?]
+   ::val-type :any
+   ::key      [:or 
+               ::key-type
+               [:cat 
+                ::key-type
+                [:* ::option]]]
+   ::var      [:or
+               [:= '?]
+               [:fn lvar?]]
+   ::val      [:or
                ::var
-               [:nested [:ref ::pattern]]
-               [:filter :any]]
+               [:ref ::pattern]
+               ::val-type]
    ::vector   [:map-of ::key ::val]
    ::seq-args [:cat 
                [:? ::var]
