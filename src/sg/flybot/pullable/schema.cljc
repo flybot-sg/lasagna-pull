@@ -4,7 +4,8 @@
 (ns sg.flybot.pullable.schema
   "Pattern validation with Malli schema."
   (:require [malli.core :as m]
-            [malli.util :as mu]))
+            [malli.util :as mu]
+            [malli.dev.pretty :as mp]))
  
 (defn lvar?
   [x]
@@ -25,7 +26,7 @@
           (#{:fn fn? :=> :any} t)
           (into [[:cat [:= :with] vector?]
                  [:cat [:= :batch] [:vector vector?]]])
-          (#{:vector :sequential :set vector? set?} t)
+          (#{:vector :sequential :set vector? set? :any} t)
           (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]])
 
 (defn entry-updater
@@ -36,7 +37,11 @@
 
 (defn schema-of 
   [data-schema]
-  (let [merger #(update % :registry merge {::lvar [:fn lvar?]})
+  (let [fixed {::lvar [:fn lvar?]
+               ::seq-args [:cat
+                           #_[:? ::lvar]
+                           #_[:? [:cat [:= :seq] [:vector {:min 1, :max 2} :int]]]]}
+        merger #(update % :registry merge fixed)
         data-schema (mu/update-properties data-schema merger)]
     (m/walk
      data-schema
@@ -52,13 +57,16 @@
           (mu/transform-entries
            sch
            (fn [[key-type val-type]]
-             [key-type [:or val-type ::lvar (options-of val-type)]]))
+             (let [vector-ptn [:or val-type ::lvar (options-of val-type)]]
+               [key-type vector-ptn])))
           
           sch))))))
 
+^:rct/test
 (comment
-  (def s1 (schema-of [:map [:a :int]]))
-  (def s2 (schema-of [:map-of :any :any]))
   (require '[malli.dev.pretty :as mp])
-  (-> [:map-of :any :any] (schema-of) (mp/explain '{:a ? :b even?}))
+  (-> [:map-of :any :any] (schema-of) (mp/explain '{:a ? :b even?}));=> nil
+  (-> [:map [:a :int] [:b :string]] (schema-of) (mp/explain '{:a ? :b "ok"})) ;=> nil
+  (-> [:map [:a :int] [:b :string]] (schema-of) (mp/explain '{:a ? :b 6})) ;=>> (not nil?)
+  (-> [:map-of :any :any] (schema-of) (mp/explain '[{:a ? :b even?}]))
   )
