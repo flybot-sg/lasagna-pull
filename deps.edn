@@ -4,7 +4,8 @@
  :aliases
  {:dev
   {:extra-paths ["test"]
-   :extra-deps {metosin/malli {:mvn/version "0.10.1"}}}
+   :extra-deps {metosin/malli {:mvn/version "0.10.1"}
+                com.github.jpmonettas/flow-storm-dbg {:mvn/version "RELEASE"}}}
   :test
   {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.77.1236"}
                 lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}}

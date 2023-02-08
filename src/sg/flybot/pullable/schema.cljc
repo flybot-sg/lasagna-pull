@@ -4,245 +4,61 @@
 (ns sg.flybot.pullable.schema
   "Pattern validation with Malli schema."
   (:require [malli.core :as m]
-            [malli.util :as mu]
-            [malli.transform :as mt]))
-
-;;; Internal utility functions
-
+            [malli.util :as mu]))
+ 
 (defn lvar?
   [x]
   (and (symbol? x) (re-matches #"\?.*" (str x))))
 
-(defn to-vector-syntax
-  "Takes a schema syntax and converts it to the vector syntax such as:
-   [:schema properties children]"
-  [syntax]
-  (let [v-schema (if (or (vector? syntax) (m/schema? syntax))
-                   (m/schema syntax)
-                   (m/from-ast syntax))]
-    (if (= :schema (m/type v-schema))
-      v-schema
-      [:schema nil v-schema])))
+(defn options-of
+  [sch]
+  [:or sch
+   ::lvar
+   [:cat ::lvar
+    [:*
+     (into
+      [:alt]
+      (let [t (m/type sch)]
+        (cond-> [[:cat [:= :default] sch]
+                 [:cat [:= :not-found] sch]
+                 [:cat [:= :when] fn?]]
+          (#{:fn fn? :=> :any} t)
+          (into [[:cat [:= :with] vector?]
+                 [:cat [:= :batch] [:vector vector?]]])
+          (#{:vector :sequential :set vector? set?} t)
+          (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]])
 
-(defn normalize-properties
-  "Walk the schema and make sure all subschemas respect the format:
-   [type properties & children]
-   by adding nil for properties when not specified."
-  [schema]
-  (m/walk
-   schema
-   (fn [schema _ children _]
-     (if (vector? (m/form schema))
-       (into [(m/type schema) (m/properties schema)] children)
-       (m/form schema)))))
+(defn entry-updater
+  [map-entry]
+  (let [[key props child] map-entry]
+    [key (assoc props :optional true) 
+     (options-of child)]))
 
-;;; General pattern
-
-(defn type-related
-  [type-id]
-  (let [t (if (= :any type-id) [:not list?] type-id)]
-    {::key [:or t [:cat t [:* ::option]]]
-     ::val [:or ::var [:ref ::pattern] type-id]}))
-
-(def fixed
-  {::option   [:alt [:cat [:= :when] fn?]]
-   ::var      [:or [:= '?] [:fn lvar?]]
-   ::seq-args [:cat [:? ::var] [:* ::option]]
-   ::seq      [:cat ::vector ::seq-args]})
-
-(defn shape-related
-  [reg data-schema]
-  (let [t (m/type data-schema)
-        custom-type-name #(keyword "custom" (name %))]
-    (case t
-      :map-of
-      (let [key-type (-> (m/children data-schema) (first) (m/type))]
-        (merge
-         reg
-         {::vector   [:map-of ::key ::val]
-          ::pattern  [:or ::vector ::seq]}
-         (type-related key-type)))
-      
-      :map
-      (merge 
-       reg
-       {}
-       #_{::pattern [:map {:closed true} 
-                   (map (fn [x]
-                          (prn x)
-                          (let [[n t] (m/children x)]
-                            [n {:optional true} (custom-type-name t)]))
-                        (m/entries data-schema))]})
-      
-      (if (get reg t)
-        reg
-        (assoc reg (custom-type-name t) (type-related t))))))
-
-(defn schema-of
-  [reg]
-  (-> [:schema {:registry reg} ::pattern]
-      (m/schema)))
-
-(defn walking [?schema]
-  (let [reg (transient fixed)
-        merge! (fn [m] (reduce conj! reg m))]
+(defn schema-of 
+  [data-schema]
+  (let [merger #(update % :registry merge {::lvar [:fn lvar?]})
+        data-schema (mu/update-properties data-schema merger)]
     (m/walk
-     ?schema
-     (fn [s _ _ _]
-       (merge! (shape-related reg s))
-       s))
-    (persistent! reg)))
+     data-schema
+     (m/schema-walker
+      (fn [sch]
+        (case (m/type sch)
+          :map 
+          (-> sch 
+              (mu/update-properties assoc :closed true)
+              (mu/transform-entries #(map entry-updater %)))
+          
+          :map-of
+          (mu/transform-entries
+           sch
+           (fn [[key-type val-type]]
+             [key-type [:or val-type ::lvar (options-of val-type)]]))
+          
+          sch))))))
 
 (comment
-  (type-related :any)
-  (shape-related fixed [:map-of :any :any]) 
-  (shape-related fixed :int)
-  (schema-of (walking [:map [:a :int] [:b :string]]))
-  (def gen-ptn (schema-of (shape-related fixed [:map-of :any :any])))
-  (m/validate gen-ptn '[{:a ?}])
+  (def s1 (schema-of [:map [:a :int]]))
+  (def s2 (schema-of [:map-of :any :any]))
+  (require '[malli.dev.pretty :as mp])
+  (-> [:map-of :any :any] (schema-of) (mp/explain '{:a ? :b even?}))
   )
-
-(def general-pattern-registry
-  "general schema registry"
-  {::option   [:alt
-               [:cat [:= :default] ::val-type]
-               [:cat [:= :not-found] ::val-type]
-               [:cat [:= :when] fn?]
-               [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]
-               [:cat [:= :with] vector?]
-               [:cat [:= :batch] [:vector vector?]]]
-   ::key-type [:not list?]
-   ::val-type :any
-   ::key      [:or 
-               ::key-type
-               [:cat 
-                ::key-type
-                [:* ::option]]]
-   ::var      [:or
-               [:= '?]
-               [:fn lvar?]]
-   ::val      [:or
-               ::var
-               [:ref ::pattern]
-               ::val-type]
-   ::vector   [:map-of ::key ::val]
-   ::seq-args [:cat 
-               [:? ::var]
-               [:* ::option]]
-   ::seq      [:cat
-               ::vector
-               ::seq-args]
-   ::pattern  [:or
-               ::vector
-               ::seq]})
-
-(def general-pattern-schema
-  [:schema
-   {:registry general-pattern-registry}
-   ::pattern])
-
-(def general-pattern-validator
-  (m/validator general-pattern-schema))
-
-;;; Client pattern
-
-(defn update-child
-  "Adds pattern info to the given `child` when applicable.
-   `options` contains the required registries notably.
-   i.e. [:a {:min 1} :int] => [:a {:min 1} [:or ::var :int]]"
-  [child options] 
-  (let [child (if (m/schema? child)
-                (-> child normalize-properties)
-                child)]
-    (if (vector? child)
-      (let [[k o & v] child
-            v1 (if (m/schema? (first v)) (normalize-properties (first v)) (first v))] 
-        (cond
-          (and (vector? v1)
-               (some #{(first v1)} [:vector :sequential :set])
-               (mu/find-first v1 (fn [sch _ _] (= :map (m/type sch))) options))
-          [k o [:or v1 [:cat (last v1) ::seq-args]]]
-
-          (and (some #{k} [:vector :sequential :set])
-               (mu/find-first v1 (fn [sch _ _] (= :map (m/type sch))) options))
-          [:or child [:cat v1 ::seq-args]]
-
-          (some #{k} [:map :vector :sequential :set])
-          child
-
-          (mu/find-first v1 (fn [sch _ _] (= :map (m/type sch))) options)
-          child
-
-          :else
-          [k o [:or ::var v1]]))
-      child)))
-
-(defn combine-data-pattern
-  "Walks through the `data-schema` and updates it with pattern registry when applicable."
-  [data-schema]
-  (m/walk
-   data-schema
-   (fn [schema _ children options]
-     (let [children (if (m/children schema)
-                      (map #(update-child % options) children)
-                      children)]
-       (m/into-schema
-        (m/type schema) (m/properties schema) children options)))
-   (m/options data-schema)))
-
-(def keys-transformer
-  "Transforms pattern's keys into simple keyword keys.
-   i.e. {'(:a :with [3]) '?a} => {:a '?a}"
-  (mt/key-transformer
-   {:encode (fn [k] (if (sequential? k) (first k) k))}))
-
-(defn keys-encoder
-  "Returns an encoder that uses `keys-transformer` on the pattern."
-  [data-schema]
-  (m/encoder data-schema keys-transformer))
-
-(defn client-pattern-schema
-  [data-schema]
-  (combine-data-pattern
-   (let [inner-schema  (-> data-schema to-vector-syntax m/children first)
-         data-registry (-> data-schema m/properties :registry)]
-     [:schema
-      {:registry ((fnil merge {}) data-registry general-pattern-registry)}
-      inner-schema])))
-
-(defn client-pattern-validator
-  [data-schema]
-  (let [encoder       (keys-encoder data-schema)
-        validator     (m/validator (client-pattern-schema data-schema))]
-    (comp validator encoder)))
-
-;;; Validator of pattern
-
-(defn pattern-validator
-  "Returns a function which can validate a query pattern.
-   Validates pattern agains 2 schemas:
-   - general pattern schema: generic validation (options in keys, selectors formats etc.)
-   - client pattern schema: when `data-schema` is provided, runs furhter validations combining the data and pattern format when applicable
-   (proper keys, proper filters, etc.)
-   The function returns the pattern if it is valid, else returns pure malli error."
-  [data-schema]
-  (fn [pattern] 
-    (cond
-      (not (general-pattern-validator pattern))
-      {:error {:cause     "Invalid general pattern syntax"
-               :type      :general-pattern-syntax
-               :malli-err (mu/explain-data general-pattern-schema pattern)}}
-
-      (and data-schema
-           (not ((client-pattern-validator data-schema) pattern)))
-      {:error {:cause     "Invalid client pattern data"
-               :type      :client-pattern-data
-               :malli-err (mu/explain-data data-schema (m/encode data-schema pattern keys-transformer))}}
-
-      :else
-      pattern)))
-
-(comment
-  ((pattern-validator nil) '{:a ?a (:b :with [3]) {:c ?c}})
-  ((pattern-validator [:schema nil [:map [:a :int] [:b [:map [:c :string]]]]])
-   {'(:a :with [3]) '?a :b {:c '?c}}))
