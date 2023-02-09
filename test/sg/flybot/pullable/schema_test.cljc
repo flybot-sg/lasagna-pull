@@ -1,11 +1,12 @@
 (ns sg.flybot.pullable.schema-test
-  (:require [clojure.test :refer [are deftest testing]] 
-            [malli.dev.pretty :as mp] 
+  (:require [clojure.test :refer [is are deftest testing]]
+            [malli.core :as m]
+            [malli.dev.pretty :as mp]
             [sg.flybot.pullable.schema :as sut]))
 
 (deftest general-pattern-validator
   (testing "General pattern is valid."
-    (are [p] (nil? (-> [:map-of :any :any] (sut/schema-of) (mp/explain p)))
+    (are [p] (nil? (-> (sut/pattern-schema-of) (mp/explain p)))
       ;;basic patterns
       '{:a ?}
       '{:a ? :b ?}
@@ -51,3 +52,25 @@
       ;; ;;batch option
       ;; '{(:a :batch [[3] [{:ok 1}]]) ?a}
       )))
+
+(deftest type-based-schema
+  (testing "type matches, should all pass!"
+    (let [sch [:map [:a :int] [:b :string] [:c [:> 5]]]]
+      (are [p] (nil? (-> (sut/pattern-schema-of sch) (mp/explain p)))
+        '{:a ?}
+        '{:a 5 :b "hello" :c ?x} ;correct types and filters
+        '{:c (? :not-found 10)} ;option
+        )))
+  (testing "data schema is quite precise, these should fail"
+    (let [sch [:map [:a :int] [:b :string] [:c [:> 5]]]]
+      (are [p] ((complement nil?) (-> (sut/pattern-schema-of sch) (m/explain p)))
+        '{:d ?} ;closed schema
+        '{:a ? :b 3 :c ?x} ;wrong type
+        '{:c (?a :default 0)} ;wrong default value
+        )))
+  (testing "recursive schema"
+    (let [sch [:map [:a [:map [:b :int]]]]]
+      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a {:b ?}}))))))
+  (testing "seq option"
+    (let [sch [:map [:a [:vector :int]]]]
+      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a (? :seq [1 5])})))))))
