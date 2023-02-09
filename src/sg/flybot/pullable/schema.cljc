@@ -16,13 +16,19 @@
   [t]
   (#{:vector :sequential :set vector? set?} t))
 
-#trace
+(defn- mark-ptn
+  [schema]
+  (assoc schema ::pattern? true))
+(defn- ptn? 
+  [schema]
+  (-> (m/properties schema) ::pattern?)) ;;check if a schema is a pattern
+
 (defn options-of
   [sch]
   [:or
-   ::lvar
+   [:fn lvar?]
    sch
-   [:cat ::lvar
+   [:cat [:fn lvar?]
     [:*
      (into
       [:alt]
@@ -40,8 +46,9 @@
   [map-entry]
   (let [[key props child] map-entry]
     [key (assoc props :optional true) 
-     (options-of child)]))
+     (cond-> child (not (ptn? child)) (options-of))]))
 
+#trace
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
    sequence of general maps."
@@ -49,41 +56,32 @@
    (pattern-schema-of
     [:map-of :any :any]))
   ([data-schema]
-   (let [fixed {::lvar [:fn lvar?]
-                ::seq-args [:cat
-                            #_[:? ::lvar]
-                            #_[:? [:cat [:= :seq] [:vector {:min 1, :max 2} :int]]]]}
-         merger #(update % :registry merge fixed)
-         mark-ptn #(assoc % ::pattern? true) ;;mark a schema is a pattern
-         ptn? #(-> (m/properties %) ::pattern?) ;;check if a schema is a pattern
-         data-schema (mu/update-properties data-schema merger)]
-     (m/walk
-      data-schema
-      (m/schema-walker
-       #trace
-       (fn [sch]
-         (let [t (m/type sch)]
-           (cond
-             (= :map t) 
-             (-> sch
-                 (mu/transform-entries #(map entry-updater %))
-                 (mu/update-properties assoc :closed true)
-                 (mu/update-properties mark-ptn))
-             
-             (= :map-of t)
-             #trace
-              (-> sch 
-                  (mu/transform-entries
-                   (fn [[key-type val-type]]
-                     (let [vector-ptn [:or val-type ::lvar (options-of val-type)]]
-                       [key-type vector-ptn])))
-                  (mu/update-properties mark-ptn))
-             
-             (and (seq-type? t) (seq (m/children sch)))
-             (let [x (-> sch m/children first)]
-               (cond-> sch (ptn? x) (-> [:cat t x] (mu/update-properties mark-ptn))))
-             
-             :else sch))))))))
+   (m/walk
+    data-schema
+    (m/schema-walker
+     (fn [sch]
+       (let [t (m/type sch)]
+         (cond
+           (= :map t)
+           (-> sch
+               (mu/transform-entries #(map entry-updater %))
+               (mu/update-properties assoc :closed true)
+               (mu/update-properties mark-ptn))
+
+           (= :map-of t)
+           (-> sch
+               (mu/transform-entries
+                (fn [[key-type val-type]]
+                  (let [vector-ptn [:or val-type [:fn lvar?] (options-of val-type)]]
+                    [key-type vector-ptn])))
+               (mu/update-properties mark-ptn))
+
+           (and (seq-type? t) (seq (m/children sch)))
+           (let [x (-> sch m/children first)]
+             (cond-> sch
+               (ptn? x) sch))
+
+           :else sch)))))))
 
 ^:rct/test
 (comment
@@ -92,5 +90,10 @@
   (-> [:map [:a :int] [:b :string]] (pattern-schema-of) (mp/explain '{:a ? :b "ok"})) ;=> nil
   (-> [:map [:a :int] [:b :string]] (pattern-schema-of) (mp/explain '{:a ? :b 6})) ;=>> (not nil?)
   (-> [:map-of :any :any] (pattern-schema-of) (mp/explain '[{:a ? :b even?}])) 
-  (-> [:map [:a [:vector :int]]] (pattern-schema-of) (mp/explain {:a '?})) 
+  (-> [:map [:a [:map [:b :int]]]] (pattern-schema-of) (mp/explain {:a {:b '?}})) 
+  (m/validate [:map [:a [:map [:b :int]]]] {:a {:b 5}})
+  (m/walk [:map [:a [:map [:b :int]]]]
+          (fn [s _ _ _]
+            (println "s:" s)
+            s))
   )
