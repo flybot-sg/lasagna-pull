@@ -23,7 +23,7 @@
   [schema]
   (-> (m/properties schema) ::pattern?)) ;;check if a schema is a pattern
 
-(defn options-of
+(defn- options-of
   [sch]
   [:or 
    sch ;;filter
@@ -43,11 +43,14 @@
           (or (= :any t) (seq-type? t))
           (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]])
 
-(defn entry-updater
+(defn- entry-updater
   [map-entry]
   (let [[key props child] map-entry]
     [key (assoc props :optional true) 
      (cond-> child (not (ptn? child)) (options-of))]))
+
+;;-------------------------------
+; Public
 
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
