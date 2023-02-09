@@ -27,30 +27,30 @@
       '{:a (?a :with [3])}
 
       ;;seq query
-      ;;'[{:a ?}]
+      '[{:a ?}]
       
       ;;nested map query
       '{:a {:b ?}}
-      ;; '{:a {:b [{:c ?}]}}
+      '{:a {:b [{:c ?}]}}
       
-      ;; ;;named variable
-      ;; '{:a ?a}
+      ;;named variable
+      '{:a ?a}
       
-      ;; ;;named variable join
-      ;; '{:a ?x :b {:c ?x}}
-      ;; '{:a ?x :b ?x}
+      ;;named variable join
+      '{:a ?x :b {:c ?x}}
+      '{:a ?x :b ?x}
       
-      ;; ;;named join
-      ;; '{:a ?a :b ?a}
+      ;;named join
+      '{:a ?a :b ?a}
       
-      ;; ;;capture a sequence
-      ;; '[{:a ? :b ?} ?g]
+      ;;capture a sequence
+      '[{:a ? :b ?} ?g]
       
-      ;; ;;seq option
-      ;; '[{:a ? :b ?} ? :seq [2 3]]
+      ;;seq option
+      '[{:a ? :b ?} ? :seq [2 3]]
       
-      ;; ;;batch option
-      ;; '{(:a :batch [[3] [{:ok 1}]]) ?a}
+      ;;batch option
+      '{(:a :batch [[3] [{:ok 1}]]) ?a}
       )))
 
 (deftest type-based-schema
@@ -70,7 +70,14 @@
         )))
   (testing "recursive schema"
     (let [sch [:map [:a [:map [:b :int]]]]]
-      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a {:b ?}}))))))
+      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a {:b ?}}))))
+      (is ((complement nil?) (-> (sut/pattern-schema-of sch) (m/explain '{:a {:b :ok}}))))))
   (testing "seq option"
     (let [sch [:map [:a [:vector :int]]]]
-      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a (? :seq [1 5])})))))))
+      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a (? :seq [1 5])}))))))
+  (testing "seq of maps"
+    (let [sch [:sequential [:map [:a :int] [:b :string]]]]
+      (are [p] (nil? (-> (sut/pattern-schema-of sch) (mp/explain p)))
+        '[{:a ?}]
+        '[{:a ?x} ?]
+        '[{:b "hello"} ?b :seq [1 5]]))))

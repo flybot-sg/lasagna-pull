@@ -25,10 +25,11 @@
 
 (defn options-of
   [sch]
-  [:or
+  [:or 
+   sch ;;filter
    [:fn lvar?]
-   sch
-   [:cat [:fn lvar?]
+   [:cat 
+    [:fn lvar?]
     [:*
      (into
       [:alt]
@@ -54,7 +55,9 @@
    sequence of general maps."
   ([]
    (pattern-schema-of
-    [:map-of :any :any]))
+    [:or 
+     [:map-of :any :any]
+     [:sequential [:map-of :any :any]]]))
   ([data-schema]
    (m/walk
     data-schema
@@ -78,8 +81,13 @@
 
            (and (seq-type? t) (seq (m/children sch)))
            (let [x (-> sch m/children first)]
-             (cond-> sch
-               (ptn? x) sch))
+             (if (ptn? x)
+               [:cat 
+                x 
+                [:? [:fn lvar?]] 
+                [:? [:alt
+                     [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
+               sch))
 
            :else sch)))))))
 
@@ -91,9 +99,5 @@
   (-> [:map [:a :int] [:b :string]] (pattern-schema-of) (mp/explain '{:a ? :b 6})) ;=>> (not nil?)
   (-> [:map-of :any :any] (pattern-schema-of) (mp/explain '[{:a ? :b even?}])) 
   (-> [:map [:a [:map [:b :int]]]] (pattern-schema-of) (mp/explain {:a {:b '?}})) 
-  (m/validate [:map [:a [:map [:b :int]]]] {:a {:b 5}})
-  (m/walk [:map [:a [:map [:b :int]]]]
-          (fn [s _ _ _]
-            (println "s:" s)
-            s))
+  (-> [:sequential [:map [:a :int]]] (pattern-schema-of) (mp/explain '[{:a ?} ?x :seq [1 5]]))
   )
