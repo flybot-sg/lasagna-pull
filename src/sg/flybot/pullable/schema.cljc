@@ -49,7 +49,6 @@
     [key (assoc props :optional true) 
      (cond-> child (not (ptn? child)) (options-of))]))
 
-#trace
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
    sequence of general maps."
@@ -82,11 +81,11 @@
            (and (seq-type? t) (seq (m/children sch)))
            (let [x (-> sch m/children first)]
              (if (ptn? x)
-               [:cat 
-                x 
-                [:? [:fn lvar?]] 
-                [:? [:alt
-                     [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
+               (-> [:cat 
+                    x 
+                    [:? [:fn lvar?]] 
+                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
+                   (mu/update-properties mark-ptn))
                sch))
 
            :else sch)))))))
