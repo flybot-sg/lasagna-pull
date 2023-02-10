@@ -36,23 +36,19 @@
 (defn- options-of
   "returns pullable pattern option for `schema`"
   [schema]
-  [:or 
-   schema ;;filter
-   [:fn lvar?]
-   [:cat 
-    [:fn lvar?]
-    [:*
-     (into
-      [:alt]
-      (let [t (m/type schema)]
-        (cond-> [[:cat [:= :default] schema]
-                 [:cat [:= :not-found] schema]
-                 [:cat [:= :when] fn?]]
-          (#{:fn fn? :=> :any} t)
-          (into [[:cat [:= :with] vector?]
-                 [:cat [:= :batch] [:vector vector?]]])
-          (or (= :any t) (seq-type? t))
-          (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]])
+  [:cat
+   [:*
+    (into
+     [:alt]
+     (let [t (m/type schema)]
+       (cond-> [[:cat [:= :default] schema]
+                [:cat [:= :not-found] schema]
+                [:cat [:= :when] fn?]]
+         (#{:fn fn? :=> :any} t)
+         (into [[:cat [:= :with] vector?]
+                [:cat [:= :batch] [:vector vector?]]])
+         (or (= :any t) (seq-type? t))
+         (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]])
 
 ^:rct/test
 (comment
@@ -68,8 +64,46 @@
   "update each `map-entry` of a malli map schema"
   [map-entry]
   (let [[key props child] map-entry]
-    [key (assoc props :optional true) 
-     (cond-> child (not (ptn? child)) (options-of))]))
+    [key 
+     (assoc props :optional true
+            ::with-options (when-not (ptn? child) (options-of child)))
+     [:or child [:fn lvar?]]]))
+
+(defn- explain-options 
+  [map-schema m path]
+  (map (juxt first #(some-> % second ::with-options (m/-explainer path))) (m/children map-schema)))
+
+(comment
+  (explain-options [:map [:a :int] [:b :string]] {} [])
+  )
+
+(defn- pattern-map-schema
+  "delegated schema"
+  [map-schema]
+  (let [extract-key (fn [k] (if (list? k) (first k) k))
+        transform-m #(->> % (map (fn [[k v]] [(extract-key k) v])) (into {}))]
+    (reify m/IntoSchema
+      (-type [_] :pattern-map)
+      (-into-schema
+       [this properties children options]
+       ^{:type ::m/schema}
+       (reify m/Schema
+         (-properties [_] properties)
+         (-form [_] [:pattern-map (m/-form map-schema)])
+         (-parent [_] this)
+         (-options [_] options)
+         (-children [_] children)
+
+         (-walk [_ p1 p2 p3]  (m/-walk map-schema p1 p2 p3))
+         (-validator
+           [_]
+           (fn [m]
+             ((m/-validator map-schema) (transform-m m))))
+         (-explainer
+           [_ path]
+           (fn [m in msgs]
+             (let [map-errors ((m/-explainer map-schema path) (transform-m m) in msgs)] 
+               map-errors))))))))
 
 ;;-------------------------------
 ; Public
@@ -93,7 +127,8 @@
            (-> sch
                (mu/transform-entries #(map entry-updater %))
                (mu/update-properties assoc :closed true)
-               mark-ptn)
+               (pattern-map-schema)
+               (mark-ptn))
 
            (= :map-of t)
            (-> sch
@@ -101,7 +136,7 @@
                 (fn [[key-type val-type]]
                   (let [vector-ptn [:or val-type [:fn lvar?] (options-of val-type)]]
                     [key-type vector-ptn])))
-               mark-ptn)
+               (mark-ptn))
 
            (and (seq-type? t) (seq (m/children sch)))
            (let [x (-> sch m/children first)]
@@ -110,7 +145,7 @@
                     x 
                     [:? [:fn lvar?]] 
                     [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
-                   mark-ptn)
+                   (mark-ptn))
                sch))
 
            :else sch)))))))
