@@ -59,14 +59,14 @@
       (are [p] (nil? (-> (sut/pattern-schema-of sch) (mp/explain p)))
         '{:a ?}
         '{:a 5 :b "hello" :c ?x} ;correct types and filters
-        '{:c (? :not-found 10)} ;option
+        '{(:c :not-found 10) ?} ;option
         )))
   (testing "data schema is quite precise, these should fail"
     (let [sch [:map [:a :int] [:b :string] [:c [:> 5]]]]
       (are [p] ((complement nil?) (-> (sut/pattern-schema-of sch) (m/explain p)))
         '{:d ?} ;closed schema
         '{:a ? :b 3 :c ?x} ;wrong type
-        '{:c (?a :default 0)} ;wrong default value
+        '{(:c :default 0) ?a} ;wrong default value
         )))
   (testing "recursive schema"
     (let [sch [:map [:a [:map [:b :int]]]]]
@@ -74,10 +74,11 @@
       (is ((complement nil?) (-> (sut/pattern-schema-of sch) (m/explain '{:a {:b :ok}}))))))
   (testing "seq option"
     (let [sch [:map [:a [:vector :int]]]]
-      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{:a (? :seq [1 5])}))))))
+      (is (nil? (-> (sut/pattern-schema-of sch) (mp/explain '{(:a :seq [1 5]) ?}))))))
   (testing "seq of maps"
     (let [sch [:sequential [:map [:a :int] [:b :string]]]]
       (are [p] (nil? (-> (sut/pattern-schema-of sch) (mp/explain p)))
         '[{:a ?}]
         '[{:a ?x} ?]
-        '[{:b "hello"} ?b :seq [1 5]]))))
+        '[{:b "hello"} ?b :seq [1 5]])))
+  )
