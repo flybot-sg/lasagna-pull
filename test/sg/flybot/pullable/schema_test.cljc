@@ -50,7 +50,7 @@
       '[{:a ? :b ?} ? :seq [2 3]]
       
       ;;batch option
-      '{(:a :batch [[3] [{:ok 1}]]) ?a}
+      '{(:a :batch [[3] [5]]) ?a}
       )))
 
 (deftest type-based-schema
