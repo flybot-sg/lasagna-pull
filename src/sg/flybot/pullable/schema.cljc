@@ -18,6 +18,17 @@
   (lvar? 'other) ;=> false
   )
 
+;;-------------------
+;; malli's map schema can not check key's options since it just lookup a simple
+;; key, however, we need to put a key in a list, so we need wrap a map schema
+;; inside a custom schema.
+
+;; TODO
+;; Malli does not contains function to determine if a type is sequential like, 
+;; or an equivlent as a function. But we need to know it in order to make different
+;; options for them. The following two functions may need better implementation.
+;; for example, `[:not list?]` should actually be treated as `:any`.
+
 (let [types #{:vector :sequential :set (m/type vector?) (m/type set?)}]
   (defn- seq-type?
     "predict `x` type is a sequential type"
@@ -122,8 +133,13 @@
   )
 
 (defn- pattern-map-schema
-  "delegated schema"
+  "a pattern-map-schema is our customization schema.
+   It delegates key, value checking to `map-schema`, and check the options
+   by using `options-map`"
   [map-schema options-map]
+  ;;For some reason, in malli you have to implement a schema as `IntoSchema`, and
+  ;;then let it returns a data schema. This kind double reifying are used in every
+  ;;malli's schema type definition.
   (reify m/IntoSchema
     (-type [_] :pattern-map)
     (-into-schema
@@ -141,9 +157,9 @@
           [_]
           (fn [m]
             (let [[stripped options] (map-extractor m)
-                  option-explainer (options-explainer options-map [] false)]
+                  option-explainer (options-explainer options-map [] false)] ;we don't need a real path, so place a []
               (and ((m/-validator map-schema) stripped)
-                   (not (seq (option-explainer options [] [])))))))
+                   (not (seq (option-explainer options [] []))))))) ;we don't need in and acc arguments
         (-explainer
          [_ path] 
          (fn [m in msgs]
@@ -210,5 +226,4 @@
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
 
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
-
   )
