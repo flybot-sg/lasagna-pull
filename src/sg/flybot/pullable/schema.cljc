@@ -140,8 +140,10 @@
         (-validator
           [_]
           (fn [m]
-            (let [[stripped options] (map-extractor m)]
-              ((m/-validator map-schema) stripped))))
+            (let [[stripped options] (map-extractor m)
+                  option-explainer (options-explainer options-map [] false)]
+              (and ((m/-validator map-schema) stripped)
+                   (not (seq (option-explainer options [] [])))))))
         (-explainer
          [_ path] 
          (fn [m in msgs]
@@ -207,7 +209,6 @@
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
 
-  (def ptn-schema3 (pattern-schema-of [:map [:b fn?]]))
-  (m/explain ptn-schema3 {(list :b :default identity) '?})
+  (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
 
   )
