@@ -4,8 +4,8 @@ name: CI
 # events but only for the master branch
 on:
   push:
-  pull_request:
     branches: [ master ]
+  pull_request:
 
 # Workaround for clojure action
 env:
@@ -24,9 +24,9 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v3
 
-    - uses: DeLaGuardo/setup-clojure@9.5
+    - uses: DeLaGuardo/setup-clojure@10.1
       with:
-        tools-deps: '1.11.1.1165'
+        tools-deps: '1.11.1.1208'
     - uses: actions/cache@v3
       with:
         path: ~/.m2

@@ -1,7 +1,12 @@
 (ns sg.flybot.pullable-test
   (:require
    [sg.flybot.pullable :as sut]
-   [clojure.test :refer [deftest are testing is]]))
+   [clojure.test :refer [deftest are testing is]]
+   #?(:clj [com.mjdowney.rich-comment-tests.test-runner :as rctr])))
+
+#?(:clj
+   (deftest rich-comment-tests
+     (rctr/run-tests-in-file-tree! :dirs #{"src"})))
 
 (deftest ^:integrated run
   (testing "Pattern is valid and pull the expected data."
