@@ -35,39 +35,36 @@
     [t]
     (boolean (types t))))
 
-(let [types #{:fn :function :=> (m/type fn?) :any}]
-  (defn- func-type?
-    "predict `x` type is a function type"
-    [t]
-    (boolean (types t))))
-
-(defn- mark-ptn
-  "mark a malli `schema` is a pullable pattern"
-  [schema]
-  (mu/update-properties schema assoc ::pattern? true))
-
-(defn- ptn? 
-  "predict if a malli schema is a pullable pattern"
-  [schema]
-  (or (= :map-pattern (m/type schema))
-      (-> (m/properties schema) ::pattern?)))
-
 (defn- options-of
   "returns pullable pattern option for `schema`"
   [schema]
-  [:cat
-   [:*
-    (into
-     [:alt]
-     (let [t (m/type schema)]
-       (cond-> [[:cat [:= :default] schema]
-                [:cat [:= :not-found] schema]
-                [:cat [:= :when] fn?]]
-         (func-type? t)
-         (into [[:cat [:= :with] vector?]
-                [:cat [:= :batch] [:vector vector?]]])
-         (or (= :any t) (seq-type? t))
-         (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]])
+  (let [args-trans (fn [s]
+                     (case (m/type s)
+                       :cat (m/into-schema :tuple (m/properties s) (m/children s))
+                       :catn (m/into-schema :tuple (m/properties s) (map #(nth % 2) (m/children s)))
+                       :else s))
+        =>arg (fn [acc s]
+                (let [[args-schema] (m/children s)
+                      args-schema (args-trans args-schema)]
+                  (into acc [[:cat [:= :with] args-schema]
+                             [:cat [:= :batch] [:vector args-schema]]])))]
+    [:cat
+     [:*
+      (into
+       [:alt]
+       (let [t (m/type schema)]
+         (cond-> [[:cat [:= :default] schema]
+                  [:cat [:= :not-found] schema]
+                  [:cat [:= :when] fn?]]
+           (= :=> t)
+           (=>arg schema) 
+                 
+           (#{:fn (m/type fn?) :any} t)
+           (into [[:cat [:= :with] vector?]
+                  [:cat [:= :batch] [:vector vector?]]])
+                 
+           (or (= :any t) (seq-type? t))
+           (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]))
 
 ^:rct/test
 (comment
@@ -76,6 +73,17 @@
   (try-val :int [:default :ok]) ;=>> (complement nil?)  
   (try-val fn? [:with [3]]) ;=> nil 
   )
+
+(defn- mark-ptn
+  "mark a malli `schema` is a pullable pattern"
+  [schema]
+  (mu/update-properties schema assoc ::pattern? true))
+
+(defn- ptn?
+  "predict if a malli schema is a pullable pattern"
+  [schema]
+  (or (= :map-pattern (m/type schema))
+      (-> (m/properties schema) ::pattern?)))
 
 (defn- entries-collector
   "collect information on entries of a malli map schema returns a pair:
@@ -220,17 +228,29 @@
 
 ^:rct/test
 (comment
+  ;;simple pattern
   (def ptn-schema (pattern-schema-of (m/schema [:map [:a :int]])))
   (m/explain ptn-schema '{:a ?}) ;=> nil
   (m/explain ptn-schema '{(:a) ?}) ;=> nil
   (m/explain ptn-schema '{(:a :default 0) ?});=> nil  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
-
+  
+  ;;nesting pattern
   (def ptn-schema2 (pattern-schema-of [:map [:a [:map [:b :int]]]]))
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
-
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
-
+  
+  ;;sequential pattern
   (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
-  (m/explain ptn-schema3 '[{:a ?} ?x])
+  (m/explain ptn-schema3 '[{:a ?} ?x :seq [1 2]]) ;=> nil
+  
+  ;;with pattern can pick up function schema
+  (def ptn-schema4 (pattern-schema-of [:map
+                                       [:a [:=> [:cat :int :keyword] :int]]
+                                       [:b [:=> [:catn [:c :string]] :int]]]))
+  (m/explain ptn-schema4 '{(:a :with [3 :foo]) ?}) ;=> nil
+  (m/explain ptn-schema4 '{(:a :with [:ok :ok]) ?}) ;=>> (complement nil?)
+  (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
+  (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
+  (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
   )
