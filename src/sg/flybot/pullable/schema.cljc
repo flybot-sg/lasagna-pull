@@ -104,7 +104,7 @@
   )
 
 (defn- pattern-explainer
-  [schema path]
+  [schema path continue?]
   (let [keyset (m/-entry-keyset (m/-entry-parser schema))
         m-error (fn [path in schema value type] {:path path, :in in, :schema schema, :value value, :type type}) 
         normalizer (fn [m] (into {} (for [[k v] m] (if (list? k) [(first k) [v (rest k)]] [k [v]]))))
@@ -136,7 +136,8 @@
         (let [x' (normalizer x)]
           (reduce
            (fn [acc explainer]
-             (explainer x' in acc))
+             (cond-> (explainer x' in acc)
+               (not continue?) (reduced)))
            acc explainers))))))
 
 (defn- pattern-entry-parser 
@@ -171,8 +172,8 @@
            (-to-ast [this _] (m/-entry-ast this (m/-entry-keyset entry-parser)))
            m/Schema
            (-explainer [this path]
-             (pattern-explainer this path)) 
-           (-validator [this] (fn [x] (-> x ((m/-explainer this []) [] []) seq boolean not)))
+             (pattern-explainer this path true)) 
+           (-validator [this] (fn [x] (-> x ((pattern-explainer this [] false) [] []) seq boolean not)))
            (-walk [this walker path options] (m/-walk-entries this walker path options))
            (-properties [_] (m/-properties map-schema))
            (-options [_] (m/-options map-schema))
