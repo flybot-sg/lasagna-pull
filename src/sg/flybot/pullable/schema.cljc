@@ -49,7 +49,8 @@
 (defn- ptn? 
   "predict if a malli schema is a pullable pattern"
   [schema]
-  (-> (m/properties schema) ::pattern?))
+  (or (= :map-pattern (m/type schema))
+      (-> (m/properties schema) ::pattern?)))
 
 (defn- options-of
   "returns pullable pattern option for `schema`"
@@ -196,7 +197,7 @@
        (let [t (m/type sch)]
          (cond
            (= :map t)
-           (-> sch (pattern-map-schema) (mark-ptn))
+           (-> sch (pattern-map-schema))
 
            (= :map-of t)
            (-> sch
@@ -212,8 +213,7 @@
                (-> [:cat 
                     x 
                     [:? [:fn lvar?]] 
-                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
-                   (mark-ptn))
+                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]])
                sch))
 
            :else sch)))))))
@@ -230,4 +230,7 @@
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
 
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
+
+  (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
+  (m/explain ptn-schema3 '[{:a ?} ?x])
   )
