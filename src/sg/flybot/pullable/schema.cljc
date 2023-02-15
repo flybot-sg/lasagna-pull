@@ -85,23 +85,11 @@
   (or (= :map-pattern (m/type schema))
       (-> (m/properties schema) ::pattern?)))
 
-(defn- entries-collector
-  "collect information on entries of a malli map schema returns a pair:
-   entries, option schema map: key to schema explainer"
-  [entries]
-  (reduce 
-   (fn [rslt [key props child]]
-     (-> rslt
-         (update 0 conj [key 
-                         (assoc props :optional true)
-                         [:or child [:fn lvar?] [:and fn? [:=> [:cat child] :boolean]]]])
-         (update 1 conj (->> [key (when-not (ptn? child) (options-of child))]))))
-   [[] {}] entries))
-
-^:rct/test
-(comment
-  (entries-collector [[:a {} :int] [:b {} :keyword]]) ;=>> [[[:a {:optional true} ...] [:b {:optional true} ...]] {}]
-  )
+(defn- val-of
+  [schema]
+  (if (ptn? schema)
+    schema
+    (m/schema [:or schema [:fn lvar?] fn?])))
 
 (defn- pattern-explainer
   [schema path continue?]
@@ -149,7 +137,7 @@
       [_]
       (for [[k props schema] (m/-entry-children entry-parser)]
         [k (assoc props ::options (m/schema (options-of schema))) 
-         (m/schema [:or schema [:fn lvar?] fn?])]))
+         (val-of schema)]))
     (-entry-entries [_] (m/-entry-entries entry-parser))
     (-entry-forms [_] (m/-entry-forms entry-parser))))
 
@@ -240,6 +228,8 @@
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
+  ;;disallow directly fetch nesting
+  (m/explain ptn-schema2 '{:a ?}) ;=>> (complement nil?)
   
   ;;sequential pattern
   (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
