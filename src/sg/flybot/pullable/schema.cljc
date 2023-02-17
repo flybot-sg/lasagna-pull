@@ -35,38 +35,36 @@
     [t]
     (boolean (types t))))
 
-(let [types #{:fn :function :=> (m/type fn?) :any}]
-  (defn- func-type?
-    "predict `x` type is a function type"
-    [t]
-    (boolean (types t))))
-
-(defn- mark-ptn
-  "mark a malli `schema` is a pullable pattern"
-  [schema]
-  (mu/update-properties schema assoc ::pattern? true))
-
-(defn- ptn? 
-  "predict if a malli schema is a pullable pattern"
-  [schema]
-  (-> (m/properties schema) ::pattern?))
-
 (defn- options-of
   "returns pullable pattern option for `schema`"
   [schema]
-  [:cat
-   [:*
-    (into
-     [:alt]
-     (let [t (m/type schema)]
-       (cond-> [[:cat [:= :default] schema]
-                [:cat [:= :not-found] schema]
-                [:cat [:= :when] fn?]]
-         (func-type? t)
-         (into [[:cat [:= :with] vector?]
-                [:cat [:= :batch] [:vector vector?]]])
-         (or (= :any t) (seq-type? t))
-         (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]])
+  (let [args-trans (fn [s]
+                     (case (m/type s)
+                       :cat (m/into-schema :tuple (m/properties s) (m/children s))
+                       :catn (m/into-schema :tuple (m/properties s) (map #(nth % 2) (m/children s)))
+                       :else s))
+        =>arg (fn [acc s]
+                (let [[args-schema] (m/children s)
+                      args-schema (args-trans args-schema)]
+                  (into acc [[:cat [:= :with] args-schema]
+                             [:cat [:= :batch] [:vector args-schema]]])))]
+    [:cat
+     [:*
+      (into
+       [:alt]
+       (let [t (m/type schema)]
+         (cond-> [[:cat [:= :default] schema]
+                  [:cat [:= :not-found] schema]
+                  [:cat [:= :when] fn?]]
+           (= :=> t)
+           (=>arg schema) 
+                 
+           (#{:fn (m/type fn?) :any} t)
+           (into [[:cat [:= :with] vector?]
+                  [:cat [:= :batch] [:vector vector?]]])
+                 
+           (or (= :any t) (seq-type? t))
+           (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]))
 
 ^:rct/test
 (comment
@@ -76,97 +74,107 @@
   (try-val fn? [:with [3]]) ;=> nil 
   )
 
-(defn- entries-collector
-  "collect information on entries of a malli map schema returns a pair:
-   entries, option schema map: key to schema explainer"
-  [entries]
-  (reduce 
-   (fn [rslt [key props child]]
-     (-> rslt
-         (update 0 conj [key 
-                         (assoc props :optional true)
-                         [:or child [:fn lvar?] [:and fn? [:=> [:cat child] :boolean]]]])
-         (update 1 conj (->> [key (when-not (ptn? child) (options-of child))]))))
-   [[] {}] entries))
+(defn- mark-ptn
+  "mark a malli `schema` is a pullable pattern"
+  [schema]
+  (mu/update-properties schema assoc ::pattern? true))
 
-^:rct/test
-(comment
-  (entries-collector [[:a {} :int] [:b {} :keyword]]) ;=>> [[[:a {:optional true} ...] [:b {:optional true} ...]] {}]
-  )
+(defn- ptn?
+  "predict if a malli schema is a pullable pattern"
+  [schema]
+  (or (= :map-pattern (m/type schema))
+      (-> (m/properties schema) ::pattern?)))
 
-(defn- map-extractor
-  "extract a map `m` returns a map pair if a key in the map is a list:
-    1. a map with only the 1st item of the key to the values
-    2. a map with the 1st key to the rest of the list"
-  [m]
-  (reduce 
-   (fn [rslt [k v]]
-     (let [[key rest] ((juxt first rest) (if (list? k) k (list k)))]
-       (cond-> (update rslt 0 conj [key v])
-         (seq rest) (update 1 conj [key rest]))))
-   [{} {}] m))
+(defn- val-of
+  [schema]
+  (if (ptn? schema)
+    schema
+    (m/schema [:or schema [:fn lvar?] fn?])))
 
-^:rct/test
-(comment
-  (map-extractor {:a :int '(:b :default 0) :int}) ;=> [{:a :int, :b :int} {:b [:default 0]}]
-  )
+(defn- pattern-explainer
+  [schema path continue?]
+  (let [keyset (m/-entry-keyset (m/-entry-parser schema))
+        m-error (fn [path in schema value type] {:path path, :in in, :schema schema, :value value, :type type}) 
+        normalizer (fn [m] (into {} (for [[k v] m] (if (list? k) [(first k) [v (rest k)]] [k [v]]))))
+        explainers
+        (-> (m/-vmap
+             (fn [[key {option-schema ::options} schema]]
+               (let [path (conj path key)
+                     option-explainer (m/-explainer option-schema path)
+                     explainer (m/-explainer schema path)]
+                 (fn [x in acc]
+                   (if-let [[_ [v o]] (find x key)]
+                     (cond->> acc
+                       (seq o)
+                       (option-explainer o (conj in key))
+                       true
+                       (explainer v (conj in key)))
+                     acc))))
+             (m/-children schema))
+            (conj (fn [x in acc]
+                    (reduce-kv
+                     (fn [acc k v]
+                       (if (contains? keyset k)
+                         acc
+                         (conj acc (m-error (conj path k) (conj in k) schema v ::m/extra-key))))
+                     acc x))))]
+    (fn [x in acc]
+      (if-not (map? x)
+        (conj acc (m-error path in schema x ::m/invalid-type))
+        (let [x' (normalizer x)]
+          (reduce
+           (fn [acc explainer]
+             (cond-> (explainer x' in acc)
+               (not continue?) (reduced)))
+           acc explainers))))))
 
-(defn- options-explainer
-  "explain options according to options-map"
-  [options-map path continue?]
-  (let [reporter (fn [& args] (zipmap [:path :in :value :type] args))]
-    (fn [options in acc]
-      (reduce 
-       (fn [acc [key option]]
-         (if-let [schema (m/schema (get options-map key))]
-           (if-let [errors ((m/explainer schema path) option in acc)]
-             (cond-> (conj acc (reporter path in errors ::m/invalid))
-               continue? (reduced))
-             acc)
-           (conj (reporter path in [key option] ::m/invalid))))
-      acc options))))
+(defn- pattern-entry-parser 
+  [entry-parser]
+  (reify
+    m/EntryParser
+    (-entry-keyset [_] (m/-entry-keyset entry-parser))
+    (-entry-children 
+      [_]
+      (for [[k props schema] (m/-entry-children entry-parser)]
+        [k (assoc props ::options (m/schema (options-of schema))) 
+         (val-of schema)]))
+    (-entry-entries [_] (m/-entry-entries entry-parser))
+    (-entry-forms [_] (m/-entry-forms entry-parser))))
 
-^:rct/test
-(comment
-  (def explainer (options-explainer {:a [:cat [:= :default] :int]} [] true))
-  (explainer {:a '[:default 5]} [:a] []) ;=> []
-  )
-
-(defn- pattern-map-schema
-  "a pattern-map-schema is our customization schema.
-   It delegates key, value checking to `map-schema`, and check the options
-   by using `options-map`"
-  [map-schema options-map]
-  ;;For some reason, in malli you have to implement a schema as `IntoSchema`, and
-  ;;then let it returns a data schema. This kind double reifying are used in every
-  ;;malli's schema type definition.
-  (reify m/IntoSchema
-    (-type [_] :pattern-map)
-    (-into-schema
-      [this properties children options]
-      ^{:type ::m/schema}
-      (reify m/Schema
-        (-properties [_] properties)
-        (-form [_] [:pattern-map (m/-form map-schema) options-map])
-        (-parent [_] this)
-        (-options [_] options)
-        (-children [_] children)
-
-        (-walk [_ p1 p2 p3]  (m/-walk map-schema p1 p2 p3))
-        (-validator
-          [_]
-          (fn [m]
-            (let [[stripped options] (map-extractor m)
-                  option-explainer (options-explainer options-map [] false)] ;we don't need a real path, so place a []
-              (and ((m/-validator map-schema) stripped)
-                   (not (seq (option-explainer options [] []))))))) ;we don't need in and acc arguments
-        (-explainer
-         [_ path] 
-         (fn [m in msgs]
-           (let [[stripped options] (map-extractor m)
-                 map-errors ((m/-explainer map-schema path) stripped in msgs)
-                 option-explainer (options-explainer options-map path true)]
-             (option-explainer options in map-errors))))))))
+(defn pattern-map-schema
+  ([map-schema]
+   ^{:type ::into-schema}
+   (reify
+     m/AST
+     (-from-ast [parent ast options] (m/-from-entry-ast parent ast options))
+     m/IntoSchema
+     (-type [_] :map-pattern)
+     (-type-properties [_])
+     (-properties-schema [_ _])
+     (-children-schema [_ _])
+     (-into-schema [parent _ _ _]
+       (let [entry-parser (pattern-entry-parser (m/-entry-parser map-schema))]
+         ^{:type ::schema}
+         (reify
+           m/AST
+           (-to-ast [this _] (m/-entry-ast this (m/-entry-keyset entry-parser)))
+           m/Schema
+           (-explainer [this path]
+             (pattern-explainer this path true)) 
+           (-validator [this] (fn [x] (-> x ((pattern-explainer this [] false) [] []) seq boolean not)))
+           (-walk [this walker path options] (m/-walk-entries this walker path options))
+           (-properties [_] (m/-properties map-schema))
+           (-options [_] (m/-options map-schema))
+           (-children [_] (m/-entry-children entry-parser))
+           (-parent [_] parent)
+           (-form [_] [:pattern-map (m/-form map-schema)])
+           m/EntrySchema
+           (-entries [_] (m/-entry-entries entry-parser))
+           (-entry-parser [_] entry-parser)
+           m/LensSchema
+           (-keep [_] true)
+           (-get [this key default] (m/-get-entries this key default))
+           (-set [this key value] (m/-set-entries this key value))))))))
 
 ;;-------------------------------
 ; Public
@@ -186,12 +194,7 @@
        (let [t (m/type sch)]
          (cond
            (= :map t)
-           (let [[new-children options-map] (entries-collector (m/children sch))]
-             (-> sch
-                 (mu/transform-entries (constantly new-children))
-                 (mu/update-properties assoc :closed true)
-                 (pattern-map-schema options-map)
-                 (mark-ptn)))
+           (-> sch (pattern-map-schema))
 
            (= :map-of t)
            (-> sch
@@ -207,23 +210,38 @@
                (-> [:cat 
                     x 
                     [:? [:fn lvar?]] 
-                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
-                   (mark-ptn))
+                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]])
                sch))
 
            :else sch)))))))
 
 ^:rct/test
 (comment
-  (def ptn-schema (pattern-schema-of [:map [:a :int]]))
+  ;;simple pattern
+  (def ptn-schema (pattern-schema-of (m/schema [:map [:a :int]])))
   (m/explain ptn-schema '{:a ?}) ;=> nil
   (m/explain ptn-schema '{(:a) ?}) ;=> nil
-  (m/explain ptn-schema '{(:a :default 0) ?});=> nil
-  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
-
+  (m/explain ptn-schema '{(:a :default 0) ?});=> nil  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
+  
+  ;;nesting pattern
   (def ptn-schema2 (pattern-schema-of [:map [:a [:map [:b :int]]]]))
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
-
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
+  ;;disallow directly fetch nesting
+  (m/explain ptn-schema2 '{:a ?}) ;=>> (complement nil?)
+  
+  ;;sequential pattern
+  (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
+  (m/explain ptn-schema3 '[{:a ?} ?x :seq [1 2]]) ;=> nil
+  
+  ;;with pattern can pick up function schema
+  (def ptn-schema4 (pattern-schema-of [:map
+                                       [:a [:=> [:cat :int :keyword] :int]]
+                                       [:b [:=> [:catn [:c :string]] :int]]]))
+  (m/explain ptn-schema4 '{(:a :with [3 :foo]) ?}) ;=> nil
+  (m/explain ptn-schema4 '{(:a :with [:ok :ok]) ?}) ;=>> (complement nil?)
+  (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
+  (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
+  (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
   )
