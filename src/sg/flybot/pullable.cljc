@@ -8,8 +8,7 @@
    information from data."
   (:require
    [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]
-   [sg.flybot.pullable.util :as util]))
+   [sg.flybot.pullable.pattern :as ptn]))
 
 ;;## APIs
 
