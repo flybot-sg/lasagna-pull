@@ -78,18 +78,3 @@
        #(into % {:shared (persistent! shared)}))))
   ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> [{:a 3, :b 4} {:shared [4 4 3], ?a 4}]
   )
-
-(defn pattern-schema-of
-  "returns a pattern schema according to `data-schema`"
-  [data-schema]
-  #_{:clj-kondo/ignore [:unresolved-symbol :unresolved-namespace]}
-  (util/opt-require
-   [sg.flybot.pullable.schema :as schema]
-   (schema/pattern-schema-of data-schema)
-   (throw (ex-info "you need metosin/malli in your classpath to use pattern schema"
-                   {:require 'metosin.malli}))))
-
-^:rct/test
-(comment
-  (pattern-schema-of [:map [:a :int]]) ;=>> (complement nil?)
-  )
