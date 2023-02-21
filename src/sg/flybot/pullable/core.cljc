@@ -64,6 +64,13 @@
         :else
         (assoc m k v)))))
 
+^:rct/test
+(comment
+  (-accept (map-acceptor {}) :foo "bar") ;=> {:foo "bar"}
+  (-accept (map-acceptor {}) :foo nil) ;=> {}
+  (-accept (map-acceptor {}) nil "bar") ;=> nil
+  )
+
 (defn fn-query
   "a query using a function to extract data
    - `k` the id of the query
@@ -79,6 +86,7 @@
 
 ^:rct/test
 (comment
+  ;;fn-query returns empty map when not found
   (run-query (fn-query :a) {:b 3}) ;=> {}
   )
 
@@ -111,7 +119,10 @@
 
 ^:rct/test
 (comment
-  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}) ;=> {:a {:b 2}}
+  (def q (join-query (fn-query :a) (fn-query :b)))
+  (run-query q {:a {:b 2}}) ;=> {:a {:b 2}}
+  (run-query q {}) ;=> {}
+  (run-query q {:a "bar"}) ;=>> {:a {:b error?}}
   )
 
 (defn vector-query
@@ -135,7 +146,9 @@
 
 ^:rct/test
 (comment
-  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
+  (def vq (vector-query [(fn-query :a) (fn-query :b)]))
+  (run-query vq {:a 5}) ;=> {:a 5}
+  (run-query vq {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
   )
 
 (defn seq-query
@@ -159,8 +172,9 @@
 
 ^:rct/test
 (comment
-  (run-query (seq-query (fn-query :a)) {:a 2}) ;=>> error?
-  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
+  (def sq (seq-query (fn-query :a)))
+  (run-query sq {:a 2}) ;=>> error?
+  (run-query sq [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
   )
 
 (defn filter-query
@@ -177,9 +191,14 @@
 
 ^:rct/test
 (comment
-  (run-query (filter-query (fn-query :a) #(= %2 2)) {:a 2}) ;=> {}
-  (run-query (vector-query [(filter-query (fn-query :a) (fn [_ d] (odd? d))) (fn-query :b)])
-             {:a 0 :b 4 :c 5}) ;=> nil
+  (def fq (filter-query (fn-query :a) (fn [_ d] (odd? d))))
+  ;;if pred success, the result does not contain its data
+  (run-query fq {:a 1}) ;=> {}
+  ;;if pred fail, filter query voids the result
+  (run-query fq {:a 2}) ;=> nil
+  ;;Using in a vector query, it can make the whole result nil
+  (run-query (vector-query [fq (fn-query :b)]) {:a 0 :b 4 :c 5}) ;=> nil
+  (run-query (vector-query [fq (fn-query :b)]) {:a 1 :b 4 :c 5}) ;=> {:b 4}
   )
 
 (defn context-of 
