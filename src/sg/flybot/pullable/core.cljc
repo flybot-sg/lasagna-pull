@@ -77,8 +77,10 @@
      (-run [_ data acceptor]
        (-accept acceptor k (f data))))))
 
+^:rct/test
 (comment
-  (run-query (fn-query :a) {:b 3}))
+  (run-query (fn-query :a) {:b 3}) ;=> {}
+  )
 
 (defn- vector-acceptor []
   (reify Acceptor
@@ -107,8 +109,10 @@
            parent-data
            (run-query child parent-data (-default-acceptor child))))))))
 
+^:rct/test
 (comment
-  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}))
+  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}) ;=> {:a {:b 2}}
+  )
 
 (defn vector-query
   "returns a query composed by `queries`, like `core/get-keys`
@@ -129,8 +133,10 @@
         {}
         queries)))))
 
+^:rct/test
 (comment
-  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}))
+  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
+  )
 
 (defn seq-query
   "returns a query operate on sequence of maps
@@ -151,9 +157,11 @@
           coll))
         (data-error coll (-id this) "expect sequential data")))))
 
+^:rct/test
 (comment
-  (run-query (seq-query (fn-query :a)) {:a 2})
-  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]))
+  (run-query (seq-query (fn-query :a)) {:a 2}) ;=>> error?
+  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
+  )
 
 (defn filter-query
   "returns a query filter the result with `q` only when it satisfies `pred`
@@ -167,10 +175,12 @@
       (let [d (run-query q data (value-acceptor))]
         (-accept ctx (when (pred data d) (-id this)) nil)))))
 
+^:rct/test
 (comment
-  (run-query (filter-query (fn-query :a) #(= % 2)) {:a 2})
-  (run-query (vector-query [(filter-query (fn-query :a) odd?) (fn-query :b)])
-             {:a 1 :b 4 :c 5}))
+  (run-query (filter-query (fn-query :a) #(= %2 2)) {:a 2}) ;=> {}
+  (run-query (vector-query [(filter-query (fn-query :a) (fn [_ d] (odd? d))) (fn-query :b)])
+             {:a 0 :b 4 :c 5}) ;=> nil
+  )
 
 (defn context-of 
   [modifier finalizer]
