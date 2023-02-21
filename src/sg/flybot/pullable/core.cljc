@@ -77,8 +77,14 @@
      (-run [_ data acceptor]
        (-accept acceptor k (f data))))))
 
+^:rct/test
 (comment
-  (run-query (fn-query :a) {:b 3}))
+  (run-query (fn-query :a) {:b 3}) ;=> {}
+  )
+
+(defn- vector-acceptor []
+  (reify Acceptor
+    (-accept [_ k v] [k v])))
 
 (defn- value-acceptor
   "returns an acceptor of value only"
@@ -103,8 +109,10 @@
            parent-data
            (run-query child parent-data (-default-acceptor child))))))))
 
+^:rct/test
 (comment
-  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}))
+  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}) ;=> {:a {:b 2}}
+  )
 
 (defn vector-query
   "returns a query composed by `queries`, like `core/get-keys`
@@ -125,8 +133,10 @@
         {}
         queries)))))
 
+^:rct/test
 (comment
-  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}))
+  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
+  )
 
 (defn seq-query
   "returns a query operate on sequence of maps
@@ -147,9 +157,11 @@
           coll))
         (data-error coll (-id this) "expect sequential data")))))
 
+^:rct/test
 (comment
-  (run-query (seq-query (fn-query :a)) {:a 2})
-  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]))
+  (run-query (seq-query (fn-query :a)) {:a 2}) ;=>> error?
+  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
+  )
 
 (defn filter-query
   "returns a query filter the result with `q` only when it satisfies `pred`
@@ -163,10 +175,27 @@
       (let [d (run-query q data (value-acceptor))]
         (-accept ctx (when (pred data d) (-id this)) nil)))))
 
+^:rct/test
 (comment
-  (run-query (filter-query (fn-query :a) #(= % 2)) {:a 2})
-  (run-query (vector-query [(filter-query (fn-query :a) odd?) (fn-query :b)])
-             {:a 1 :b 4 :c 5}))
+  (run-query (filter-query (fn-query :a) #(= %2 2)) {:a 2}) ;=> {}
+  (run-query (vector-query [(filter-query (fn-query :a) (fn [_ d] (odd? d))) (fn-query :b)])
+             {:a 0 :b 4 :c 5}) ;=> nil
+  )
+
+(defn context-of 
+  [modifier finalizer]
+  (reify QueryContext
+    (-wrap-query
+      [_ q args]
+      (reify DataQuery
+        (-id [_] (-id q))
+        (-default-acceptor [_] (-default-acceptor q))
+        (-run [_ data acceptor]
+          (let [[k v] (->> (-run q data (vector-acceptor)) (modifier args))]
+            (-accept acceptor k v)))))
+    (-finalize
+      [_ m]
+      (finalizer m))))
 
 (defn named-query-factory
   "returns a new NamedQueryFactory
@@ -174,39 +203,24 @@
   ([]
    (named-query-factory (atom nil)))
   ([a-symbol-table]
-   (reify QueryContext
-     (-wrap-query
-       [_ q [sym]]
-       (if-not sym
-         q
-         (reify DataQuery
-           (-id [_] (-id q))
-           (-default-acceptor [_] (-default-acceptor q))
-           (-run [this data acceptor]
-             (let [v        (-run q data (value-acceptor))
-                   old-v    (get @a-symbol-table sym ::not-found)
-                   set-val! #(do (swap! a-symbol-table assoc sym %) %)
-                   rslt
-                   (condp = old-v
-                     ::not-found (set-val! v)
-                     v           v
-                     ::invalid   ::invalid
-                     (set-val! ::invalid))]
-               (-accept acceptor (when (not= rslt ::invalid) (-id this)) rslt))))))
-     (-finalize [_ m]
-       (if-let [binds @a-symbol-table]
-         (into
-          m
-          (filter (fn [[_ v]] (not= ::invalid v)))
-          binds)
-         m)))))
+   (context-of
+    (fn [[sym] pair]
+      (if (some? sym)
+        (let [[k v]    pair
+              old-v    (get @a-symbol-table sym ::not-found)
+              set-val! #(do (swap! a-symbol-table assoc sym %) %)
+              rslt
+              (condp = old-v
+                ::not-found (set-val! v)
+                v           v
+                ::invalid   ::invalid
+                (set-val! ::invalid))]
+          [(when (not= rslt ::invalid) k) rslt])
+        pair))
+    #(into % (filter (fn [[_ v]] (not= ::invalid v))) @a-symbol-table))))
 
 ;;### post-process-query
 ;; It is common to process data after it matches
-
-(defn- vector-acceptor []
-  (reify Acceptor
-    (-accept [_ k v] [k v])))
 
 (defn post-process-query
   "A query decorator post process its result. Given query `child`, the function

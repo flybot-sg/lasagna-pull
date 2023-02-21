@@ -1,7 +1,7 @@
 (ns sg.flybot.pullable-test
   (:require
    [sg.flybot.pullable :as sut]
-   [clojure.test :refer [deftest are testing is]]
+   [clojure.test :refer [deftest are testing]]
    #?(:clj [com.mjdowney.rich-comment-tests.test-runner :as rctr])))
 
 #?(:clj
@@ -81,10 +81,3 @@
       {:a identity}
       '{(:a :batch [[3] [{:ok 1}]]) ?a}
       [{:a [3 {:ok 1}]} {'?a [3 {:ok 1}]}])))
-
-(deftest query-with-context
-  (let [shared (transient []) 
-        qr (sut/query '{:a ? :b ?} 
-                      (fn [q] (sut/post-process-query q (fn [[k v]] (when (number? v) (conj! shared v)) [k v])))
-                      #(assoc % :shared (persistent! shared)))]
-    (is (= [{:a 3 :b 4} {:shared [3 4]}] (qr {:a 3 :b 4})))))

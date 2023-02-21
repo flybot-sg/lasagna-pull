@@ -10,7 +10,7 @@
    [sg.flybot.pullable.core :as core]
    [sg.flybot.pullable.pattern :as ptn]))
 
-;;## Glue code 
+;;## APIs
 
 (defn query
   "Returns a query function from `pattern`. A query function can be used to extract information
@@ -42,18 +42,38 @@
        `[{:a 1} {:a 3} {}]`. 
    
    Advanced arguments. Sometimes you need subqueries sharing information among them.
-     - `query-wrapper` is function take a query as first argument and abitary arguments, returns a query.
-     - `finalizer` is a function takes a map as argument, returns a map, it will be called at the end of a
-       query running, the result map will be returned as the second of the returned pair.
-   "
+     - You can pass an additional `context` to it, which is a `QueryContext` instance made by
+       `context-of` function."
   ([pattern]
-   (query pattern nil nil))
-  ([pattern query-wrapper finalizer]
+   (query pattern nil))
+  ([pattern context]
    (fn [data]
-     (let [context (reify core/QueryContext
-                     (-wrap-query [_ q args] (if query-wrapper (apply query-wrapper q args) q))
-                     (-finalize [_ m] ((or finalizer identity) m)))
-           q (ptn/->query (core/query-maker context) pattern ptn/filter-maker)]
-       (core/run-bind q data)))))
+     (-> context
+         core/query-maker
+         (ptn/->query pattern ptn/filter-maker)
+         (core/run-bind data)))))
 
-(def post-process-query core/post-process-query)
+(defn context-of
+  "returns a query context of function `modifier` and function `finalizer`(default `clojure.core/identity`),
+   this could be used to:
+     - modify query result, the value returned by `modifier` will be in the query result.
+     - collect information in all query results.
+   Information on arguments:
+   - `modifier`: returns a key-value pair which will contains in the query result. argurments are:
+     - `args`: a vector that might passed to this.
+     - `key-value`: a key-value pair returned by original query running result.
+   - `finalizer`: accept a single map and returns any value which will be called when we've done querying."
+  ([modifier]
+   (context-of modifier identity))
+  ([modifier finalizer]
+   (core/context-of modifier finalizer)))
+
+^:rct/test
+(comment
+  (defn my-ctx []
+    (let [shared (transient [])]
+      (context-of
+       (fn [_ [k v]] (when (number? v) (conj! shared v)) [k v])
+       #(into % {:shared (persistent! shared)}))))
+  ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> [{:a 3, :b 4} {:shared [4 4 3], ?a 4}]
+  )

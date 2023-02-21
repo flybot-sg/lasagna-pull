@@ -5,6 +5,7 @@
  {:dev
   {:extra-paths ["test" "dev"]
    :extra-deps {metosin/malli {:mvn/version "0.10.1"}
+                com.bhauman/figwheel-main {:mvn/version "0.2.18"}
                 io.github.matthewdowney/rich-comment-tests {:git/tag "v1.0.2" :git/sha "4501366"}}}
   :test ;;has to be used with :dev
   {:extra-deps {lambdaisland/kaocha           {:mvn/version "1.77.1236"}
