@@ -20,6 +20,10 @@
   [arg]
   (assert-arg! (constantly false) arg))
 
+(comment
+  (apply-post {:proc/type :default})
+  )
+
 ;;### :when option
 ;; Takes a pred function as its argument (:proc/val)
 ;; when the return value not fullfil `pred`, it is not included in result.
@@ -30,6 +34,12 @@
     (fn [[k v]]
       [k (when (pred v) v)])))
 
+^:rct/test
+(comment
+  ((apply-post {:proc/type :when :proc/val odd?}) [:a 1]) ;=> [:a 1]
+  ((apply-post {:proc/type :when :proc/val odd?}) [:a 0]) ;=> [:a nil]
+  )
+
 ;;### :not-found option
 ;; Takes any value as its argument (:proc/val)
 ;; When a value not found, it gets replaced by not-found value
@@ -37,6 +47,12 @@
   [{:proc/keys [val]}]
   (fn [[k v]]
     [k (or v val)]))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :not-found :proc/val ::default}) [:a 1]) ;=> [:a 1]
+  ((apply-post {:proc/type :not-found :proc/val :default}) [:a nil]) ;=> [:a :default]
+  )
 
 ;;### :with option
 ;; Takes a vector of args as this option's argument (:proc/val)

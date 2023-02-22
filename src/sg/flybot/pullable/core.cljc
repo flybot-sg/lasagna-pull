@@ -201,7 +201,7 @@
   (run-query (vector-query [fq (fn-query :b)]) {:a 1 :b 4 :c 5}) ;=> {:b 4}
   )
 
-(defn context-of 
+(defn context-of
   [modifier finalizer]
   (reify QueryContext
     (-wrap-query
@@ -220,14 +220,14 @@
   "returns a new NamedQueryFactory
    - `a-symbol-table`: an atom of map to accept symbol-> val pair"
   ([]
-   (named-query-factory (atom nil)))
-  ([a-symbol-table]
+   (named-query-factory (transient {})))
+  ([symbol-table]
    (context-of
     (fn [[sym] pair]
       (if (some? sym)
         (let [[k v]    pair
-              old-v    (get @a-symbol-table sym ::not-found)
-              set-val! #(do (swap! a-symbol-table assoc sym %) %)
+              old-v    (get symbol-table sym ::not-found)
+              set-val! #(get (assoc! symbol-table sym %) sym)
               rslt
               (condp = old-v
                 ::not-found (set-val! v)
@@ -236,7 +236,25 @@
                 (set-val! ::invalid))]
           [(when (not= rslt ::invalid) k) rslt])
         pair))
-    #(into % (filter (fn [[_ v]] (not= ::invalid v))) @a-symbol-table))))
+    #(into % (filter (fn [[_ v]] (not= ::invalid v))) (persistent! symbol-table)))))
+
+(defn- mock-query [k v]
+  (reify DataQuery
+    (-id [_] k)
+    (-default-acceptor [_] (map-acceptor {}))
+    (-run [_ _ _] [k v])))
+
+^:rct/test
+(comment
+  (defn try-named [init]
+    (let [fac (named-query-factory (transient init))]
+      (-> (-wrap-query fac (mock-query :foo "bar") ['?a]) (run-bind {}))
+      (-finalize fac {})))
+  (try-named {})  ;=> {?a "bar"}
+  (try-named {'?a "none"}) ;=> {}
+  (try-named {'?a "bar"}) ;=> {?a "bar"}
+  (try-named {'?a ::invalid}) ;=> {}
+  )
 
 ;;### post-process-query
 ;; It is common to process data after it matches
