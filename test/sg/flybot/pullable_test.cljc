@@ -6,7 +6,8 @@
 
 #?(:clj
    (deftest rich-comment-tests
-     (rctr/run-tests-in-file-tree! :dirs #{"src"})))
+     (testing "all white box small tests"
+       (rctr/run-tests-in-file-tree! :dirs #{"src"}))))
 
 (deftest ^:integrated run
   (testing "Pattern is valid and pull the expected data."
