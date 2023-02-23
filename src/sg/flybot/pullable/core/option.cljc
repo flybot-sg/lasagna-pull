@@ -3,7 +3,7 @@
 
 (ns sg.flybot.pullable.core.option
   "support for decorate query options"
-  (:require [sg.flybot.pullable.util :refer [data-error]]))
+  (:require [sg.flybot.pullable.util :as u :refer [data-error]]))
 
 (defmulti apply-post
   "create a post processor by ::pp-type, returns a function takes
@@ -20,8 +20,9 @@
   [arg]
   (assert-arg! (constantly false) arg))
 
+^:rct/test
 (comment
-  (apply-post {:proc/type :default})
+  (apply-post {:proc/type :default}) ;throws=> clojure.lang.ExceptionInfo
   )
 
 ;;### :when option
@@ -36,6 +37,8 @@
 
 ^:rct/test
 (comment
+  ((apply-post {:proc/type :when :proc/val 1}) [:a 1]) ; throws=> Exception
+  ;;when everything ok, it returns the original data
   ((apply-post {:proc/type :when :proc/val odd?}) [:a 1]) ;=> [:a 1]
   ((apply-post {:proc/type :when :proc/val odd?}) [:a 0]) ;=> [:a nil]
   )
@@ -46,7 +49,7 @@
 (defmethod apply-post :not-found
   [{:proc/keys [val]}]
   (fn [[k v]]
-    [k (or v val)]))
+    [k (or v val)])) 
 
 ^:rct/test
 (comment
@@ -63,9 +66,16 @@
   (let [{args :proc/val} arg]
     (assert-arg! vector? arg)
     (fn [[k f]]
-      (when-not (fn? f)
-        (data-error f k "value must be a function"))
-      [k (apply f args)])))
+      [k (if (fn? f)
+           (apply f args)
+           (data-error f k "value must be a function"))])))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :with :proc/val 3}) [:a 1]) ;throws=> Exception
+  ((apply-post {:proc/type :with :proc/val [3]}) [:a 3]) ;=>> [:a u/error?]
+  ((apply-post {:proc/type :with :proc/val [3]}) [:a inc]) ;=> [:a 4]
+  )
 
 ;;### :batch option
 ;; Takes a vector of vector of args as this options's argument. 
@@ -79,6 +89,13 @@
       [k (if-not (fn? f)
            (data-error f k "value must be a function")
            (map #(apply f %) args-vec))])))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :batch :proc/val [3]}) [:a inc]) ;throws=> Exception
+  ((apply-post {:proc/type :batch :proc/val [[3] [4]]}) [:a inc]) ;=> [:a [4 5]]
+  ((apply-post {:proc/type :batch :proc/val [[3] [4]]}) [:a 3]) ;=>> [:a u/error?]
+  )
 
 ;;### :seq option (Pagination)
 ;; Takes a pair of numbers as this option's argument.
@@ -95,6 +112,13 @@
       [k (if-not (seqable? v)
            (data-error v k "seq option can only be used on sequences")
            (->> v (drop from) (take cnt)))])))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :seq :proc/val 3}) [:a inc]) ;throws=> #"illegal argument"
+  ((apply-post {:proc/type :seq :proc/val [1 3]}) [:a (range 8)]) ;=> [:a [1 2 3]]
+  ((apply-post {:proc/type :seq :proc/val [1 3]}) [:a 1]) ;=>> [:a u/error?]
+  )
 
 ;;### :watch option
 ;; Takes an function as the argument (:proc/val): 
@@ -120,3 +144,14 @@
         (do (add-watch v w-k watcher)
             [k @v])
         [k (data-error v k "watch option can only apply to an watchable value")]))))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :watch :proc/val 1}) [:a inc]) ;throws=> Exception
+  ((apply-post {:proc/type :watch :proc/val identity}) [:a inc]) ;=>> [:a u/error?]
+  (def a (atom 0))
+  (def b (atom 0))
+  ((apply-post {:proc/type :watch :proc/val (fn [_ v] (reset! b v))}) [:a a]);=> [:a 0]
+  (reset! a 5)
+  @b ;=> 5
+  )
