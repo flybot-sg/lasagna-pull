@@ -21,7 +21,8 @@
   [x]
   (instance? DataError x))
 
+^:rct/test
 (comment
-  (pr-str
-   (data-error {} :k))
+  (data-error {} :k) ;=>> {:query-id :k}
+  (error? (data-error {} :k)) ;=> true
   )

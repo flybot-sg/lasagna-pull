@@ -64,6 +64,13 @@
         :else
         (assoc m k v)))))
 
+^:rct/test
+(comment
+  (-accept (map-acceptor {}) :foo "bar") ;=> {:foo "bar"}
+  (-accept (map-acceptor {}) :foo nil) ;=> {}
+  (-accept (map-acceptor {}) nil "bar") ;=> nil
+  )
+
 (defn fn-query
   "a query using a function to extract data
    - `k` the id of the query
@@ -79,6 +86,7 @@
 
 ^:rct/test
 (comment
+  ;;fn-query returns empty map when not found
   (run-query (fn-query :a) {:b 3}) ;=> {}
   )
 
@@ -111,7 +119,10 @@
 
 ^:rct/test
 (comment
-  (run-query (join-query (fn-query :a) (fn-query :b)) {:a {:b 2}}) ;=> {:a {:b 2}}
+  (def q (join-query (fn-query :a) (fn-query :b)))
+  (run-query q {:a {:b 2}}) ;=> {:a {:b 2}}
+  (run-query q {}) ;=> {}
+  (run-query q {:a "bar"}) ;=>> {:a {:b error?}}
   )
 
 (defn vector-query
@@ -135,7 +146,9 @@
 
 ^:rct/test
 (comment
-  (run-query (vector-query [(fn-query :a) (fn-query :b)]) {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
+  (def vq (vector-query [(fn-query :a) (fn-query :b)]))
+  (run-query vq {:a 5}) ;=> {:a 5}
+  (run-query vq {:a 3 :b 4 :c 5}) ;=> {:a 3 :b 4}
   )
 
 (defn seq-query
@@ -159,8 +172,9 @@
 
 ^:rct/test
 (comment
-  (run-query (seq-query (fn-query :a)) {:a 2}) ;=>> error?
-  (run-query (seq-query (fn-query :a)) [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
+  (def sq (seq-query (fn-query :a)))
+  (run-query sq {:a 2}) ;=>> error?
+  (run-query sq [{:a 1} {:a 2 :b 3} {}]) ;=> [{:a 1} {:a 2} {}]
   )
 
 (defn filter-query
@@ -177,12 +191,17 @@
 
 ^:rct/test
 (comment
-  (run-query (filter-query (fn-query :a) #(= %2 2)) {:a 2}) ;=> {}
-  (run-query (vector-query [(filter-query (fn-query :a) (fn [_ d] (odd? d))) (fn-query :b)])
-             {:a 0 :b 4 :c 5}) ;=> nil
+  (def fq (filter-query (fn-query :a) (fn [_ d] (odd? d))))
+  ;;if pred success, the result does not contain its data
+  (run-query fq {:a 1}) ;=> {}
+  ;;if pred fail, filter query voids the result
+  (run-query fq {:a 2}) ;=> nil
+  ;;Using in a vector query, it can make the whole result nil
+  (run-query (vector-query [fq (fn-query :b)]) {:a 0 :b 4 :c 5}) ;=> nil
+  (run-query (vector-query [fq (fn-query :b)]) {:a 1 :b 4 :c 5}) ;=> {:b 4}
   )
 
-(defn context-of 
+(defn context-of
   [modifier finalizer]
   (reify QueryContext
     (-wrap-query
@@ -201,14 +220,14 @@
   "returns a new NamedQueryFactory
    - `a-symbol-table`: an atom of map to accept symbol-> val pair"
   ([]
-   (named-query-factory (atom nil)))
-  ([a-symbol-table]
+   (named-query-factory (transient {})))
+  ([symbol-table]
    (context-of
     (fn [[sym] pair]
       (if (some? sym)
         (let [[k v]    pair
-              old-v    (get @a-symbol-table sym ::not-found)
-              set-val! #(do (swap! a-symbol-table assoc sym %) %)
+              old-v    (get symbol-table sym ::not-found)
+              set-val! #(get (assoc! symbol-table sym %) sym)
               rslt
               (condp = old-v
                 ::not-found (set-val! v)
@@ -217,7 +236,25 @@
                 (set-val! ::invalid))]
           [(when (not= rslt ::invalid) k) rslt])
         pair))
-    #(into % (filter (fn [[_ v]] (not= ::invalid v))) @a-symbol-table))))
+    #(into % (filter (fn [[_ v]] (not= ::invalid v))) (persistent! symbol-table)))))
+
+(defn- mock-query [k v]
+  (reify DataQuery
+    (-id [_] k)
+    (-default-acceptor [_] (map-acceptor {}))
+    (-run [_ _ _] [k v])))
+
+^:rct/test
+(comment
+  (defn try-named [init]
+    (let [fac (named-query-factory (transient init))]
+      (-> (-wrap-query fac (mock-query :foo "bar") ['?a]) (run-bind {}))
+      (-finalize fac {})))
+  (try-named {})  ;=> {?a "bar"}
+  (try-named {'?a "none"}) ;=> {}
+  (try-named {'?a "bar"}) ;=> {?a "bar"}
+  (try-named {'?a ::invalid}) ;=> {}
+  )
 
 ;;### post-process-query
 ;; It is common to process data after it matches
