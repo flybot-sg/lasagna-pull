@@ -132,7 +132,7 @@
                (not continue?) (reduced)))
            acc explainers))))))
 
-(defn pattern-map-schema
+(defn- pattern-map-schema
   ([map-schema]
    ^{:type ::into-schema}
    (reify
@@ -168,11 +168,19 @@
            (-set [this key value] (m/-set-entries this key value))))))))
 
 ;;-------------------------------
-; Public
+; Public API
 
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
-   sequence of general maps."
+   sequence of general maps.
+
+  You can use this returned schema to check your pattern, using malli's `validate`/`validator`,
+  and `explain`/`explainer` functions.
+
+  The validator/explainer produced will try catch all problems which can be inferred from
+  the `data-schema`. For example, if a data schema specified a map only contains `:a` and `:b`
+  keys, patterns which asking for any other keys will fail. This makes a good strategy if you want
+  limit the visibility of your data to the users. Extremely useful for remote pulling."
   ([]
    (pattern-schema-of nil))
   ([data-schema]

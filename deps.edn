@@ -4,12 +4,12 @@
  {:dev
   {:extra-paths ["test" "dev"],
    :extra-deps
-   {metosin/malli {:mvn/version "0.10.1"},
+   {metosin/malli {:mvn/version "0.10.2"},
     com.bhauman/figwheel-main {:mvn/version "0.2.18"},
     io.github.robertluo/rich-comment-tests {:git/tag "v1.1.0", :git/sha "6d01d12"}}},
   :test
   {:extra-deps
-   {lambdaisland/kaocha {:mvn/version "1.77.1236"},
+   {lambdaisland/kaocha {:mvn/version "1.80.1274"},
     lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}},
    :main-opts ["-m" "kaocha.runner"]},
   :cljs-test
