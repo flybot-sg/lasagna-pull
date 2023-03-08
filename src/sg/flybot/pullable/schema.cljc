@@ -92,16 +92,16 @@
     (m/schema [:or schema [:fn lvar?] fn?])))
 
 (defn- pattern-explainer
+  "explain `schema` on `path`, if `continue?` is false, stops on first error"
   [schema path continue?]
   (let [keyset (m/-entry-keyset (m/-entry-parser schema))
         m-error (fn [path in schema value type] {:path path, :in in, :schema schema, :value value, :type type}) 
         normalizer (fn [m] (into {} (for [[k v] m] (if (list? k) [(first k) [v (rest k)]] [k [v]]))))
         explainers
         (-> (m/-vmap
-             (fn [[key {option-schema ::options} schema]]
-               (let [path (conj path key)
-                     option-explainer (m/-explainer option-schema path)
-                     explainer (m/-explainer schema path)]
+             (fn [[key _ schema]]
+               (let [option-explainer (m/-explainer (m/schema (options-of schema)) path)
+                     explainer (m/-explainer (val-of schema) path)]
                  (fn [x in acc]
                    (if-let [[_ [v o]] (find x key)]
                      (cond->> acc
@@ -128,19 +128,6 @@
                (not continue?) (reduced)))
            acc explainers))))))
 
-(defn- pattern-entry-parser 
-  [entry-parser]
-  (reify
-    m/EntryParser
-    (-entry-keyset [_] (m/-entry-keyset entry-parser))
-    (-entry-children 
-      [_]
-      (for [[k props schema] (m/-entry-children entry-parser)]
-        [k (assoc props ::options (m/schema (options-of schema))) 
-         (val-of schema)]))
-    (-entry-entries [_] (m/-entry-entries entry-parser))
-    (-entry-forms [_] (m/-entry-forms entry-parser))))
-
 (defn pattern-map-schema
   ([map-schema]
    ^{:type ::into-schema}
@@ -153,7 +140,7 @@
      (-properties-schema [_ _])
      (-children-schema [_ _])
      (-into-schema [parent _ _ _]
-       (let [entry-parser (pattern-entry-parser (m/-entry-parser map-schema))]
+       (let [entry-parser (m/-entry-parser map-schema)]
          ^{:type ::schema}
          (reify
            m/AST
@@ -244,4 +231,10 @@
   (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
   (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
+  
+  ;;with pattern can nested
+  (def ptn-schema5 (pattern-schema-of [:map [:a [:=> [:cat :int] [:map [:b :string]]]]]))
+  (m/explain ptn-schema5 '{(:a :with [3]) {:b ?}}) ;=> nil
+  ;;TODO not implemented yet
+  ;(m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> (complement nil?)
   )
