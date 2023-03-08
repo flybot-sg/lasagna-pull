@@ -91,6 +91,14 @@
     schema
     (m/schema [:or schema [:fn lvar?] fn?])))
 
+(defn- explain-options
+  "returns a pair of result schema, and explaining result for options"
+  [schema path o in acc]
+  (if (seq o)
+    [(cond-> schema (= :=> (m/type schema)) (-> m/children second))
+     ((m/-explainer (m/schema (options-of schema)) path) o in acc)]
+    [schema acc]))
+
 (defn- pattern-explainer
   "explain `schema` on `path`, if `continue?` is false, stops on first error"
   [schema path continue?]
@@ -100,16 +108,11 @@
         explainers
         (-> (m/-vmap
              (fn [[key _ schema]]
-               (let [option-explainer (m/-explainer (m/schema (options-of schema)) path)
-                     explainer (m/-explainer (val-of schema) path)]
-                 (fn [x in acc]
-                   (if-let [[_ [v o]] (find x key)]
-                     (cond->> acc
-                       (seq o)
-                       (option-explainer o (conj in key))
-                       true
-                       (explainer v (conj in key)))
-                     acc))))
+               (fn [x in acc]
+                 (if-let [[_ [v o]] (find x key)]
+                   (let [[sc acc] (explain-options schema path o (conj in key) acc)]
+                     ((m/-explainer (val-of sc) path) v (conj in key) acc))
+                   acc)))
              (m/-children schema))
             (conj (fn [x in acc]
                     (reduce-kv
@@ -235,6 +238,13 @@
   ;;with pattern can nested
   (def ptn-schema5 (pattern-schema-of [:map [:a [:=> [:cat :int] [:map [:b :string]]]]]))
   (m/explain ptn-schema5 '{(:a :with [3]) {:b ?}}) ;=> nil
-  ;;TODO not implemented yet
-  ;(m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> (complement nil?)
+  
+  ;;for with pattern, its return type will be checked
+  (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> {:errors #(= 1 (count %))}
+  (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found "ok") ?}}) ;=> nil
+  
+  ;;multiple options check
+  (m/explain ptn-schema5 {(list :a :not-found str :with [:ok]) 
+                          {(list :b :not-found 4) '?}}) ;=>> {:errors #(= 2 (count %))}
+  
   )
