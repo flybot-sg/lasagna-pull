@@ -22,7 +22,7 @@
 
 ^:rct/test
 (comment
-  (apply-post {:proc/type :default}) ;throws=> clojure.lang.ExceptionInfo
+  (apply-post {:proc/type :default}) ;throws=>> {:error/class clojure.lang.ExceptionInfo}
   )
 
 ;;### :when option
@@ -37,7 +37,7 @@
 
 ^:rct/test
 (comment
-  ((apply-post {:proc/type :when :proc/val 1}) [:a 1]) ; throws=> Exception
+  ((apply-post {:proc/type :when :proc/val 1}) [:a 1]) ; throws=>> {:error/class clojure.lang.ExceptionInfo}
   ;;when everything ok, it returns the original data
   ((apply-post {:proc/type :when :proc/val odd?}) [:a 1]) ;=> [:a 1]
   ((apply-post {:proc/type :when :proc/val odd?}) [:a 0]) ;=> [:a nil]
@@ -72,7 +72,7 @@
 
 ^:rct/test
 (comment
-  ((apply-post {:proc/type :with :proc/val 3}) [:a 1]) ;throws=> Exception
+  ((apply-post {:proc/type :with :proc/val 3}) [:a 1]) ;throws=>> {:error/class clojure.lang.ExceptionInfo}
   ((apply-post {:proc/type :with :proc/val [3]}) [:a 3]) ;=>> [:a u/error?]
   ((apply-post {:proc/type :with :proc/val [3]}) [:a inc]) ;=> [:a 4]
   )
@@ -92,7 +92,7 @@
 
 ^:rct/test
 (comment
-  ((apply-post {:proc/type :batch :proc/val [3]}) [:a inc]) ;throws=> Exception
+  ((apply-post {:proc/type :batch :proc/val [3]}) [:a inc]) ;throws=>> {:error/class clojure.lang.ExceptionInfo}
   ((apply-post {:proc/type :batch :proc/val [[3] [4]]}) [:a inc]) ;=> [:a [4 5]]
   ((apply-post {:proc/type :batch :proc/val [[3] [4]]}) [:a 3]) ;=>> [:a u/error?]
   )
@@ -115,7 +115,7 @@
 
 ^:rct/test
 (comment
-  ((apply-post {:proc/type :seq :proc/val 3}) [:a inc]) ;throws=> #"illegal argument"
+  ((apply-post {:proc/type :seq :proc/val 3}) [:a inc]) ;throws=>> {:error/message #"illegal argument"}
   ((apply-post {:proc/type :seq :proc/val [1 3]}) [:a (range 8)]) ;=> [:a [1 2 3]]
   ((apply-post {:proc/type :seq :proc/val [1 3]}) [:a 1]) ;=>> [:a u/error?]
   )
@@ -147,7 +147,7 @@
 
 ^:rct/test
 (comment
-  ((apply-post {:proc/type :watch :proc/val 1}) [:a inc]) ;throws=> Exception
+  ((apply-post {:proc/type :watch :proc/val 1}) [:a inc]) ;throws=>> {:error/class clojure.lang.ExceptionInfo}
   ((apply-post {:proc/type :watch :proc/val identity}) [:a inc]) ;=>> [:a u/error?]
   (def a (atom 0))
   (def b (atom 0))
