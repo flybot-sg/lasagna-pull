@@ -35,6 +35,7 @@
     [t]
     (boolean (types t))))
 
+;;TODO options are fixed, should make it multimethod allowing expanding
 (defn- options-of
   "returns pullable pattern option for `schema`"
   [schema]
