@@ -35,6 +35,7 @@
     [t]
     (boolean (types t))))
 
+;;TODO options are fixed, should make it multimethod allowing expanding
 (defn- options-of
   "returns pullable pattern option for `schema`"
   [schema]
@@ -91,25 +92,28 @@
     schema
     (m/schema [:or schema [:fn lvar?] fn?])))
 
+(defn- explain-options
+  "returns a pair of result schema, and explaining result for options"
+  [schema path o in acc]
+  (if (seq o)
+    [(cond-> schema (= :=> (m/type schema)) (-> m/children second))
+     ((m/-explainer (m/schema (options-of schema)) path) o in acc)]
+    [schema acc]))
+
 (defn- pattern-explainer
+  "explain `schema` on `path`, if `continue?` is false, stops on first error"
   [schema path continue?]
   (let [keyset (m/-entry-keyset (m/-entry-parser schema))
         m-error (fn [path in schema value type] {:path path, :in in, :schema schema, :value value, :type type}) 
         normalizer (fn [m] (into {} (for [[k v] m] (if (list? k) [(first k) [v (rest k)]] [k [v]]))))
         explainers
         (-> (m/-vmap
-             (fn [[key {option-schema ::options} schema]]
-               (let [path (conj path key)
-                     option-explainer (m/-explainer option-schema path)
-                     explainer (m/-explainer schema path)]
-                 (fn [x in acc]
-                   (if-let [[_ [v o]] (find x key)]
-                     (cond->> acc
-                       (seq o)
-                       (option-explainer o (conj in key))
-                       true
-                       (explainer v (conj in key)))
-                     acc))))
+             (fn [[key _ schema]]
+               (fn [x in acc]
+                 (if-let [[_ [v o]] (find x key)]
+                   (let [[sc acc] (explain-options schema path o (conj in key) acc)]
+                     ((m/-explainer (val-of sc) path) v (conj in key) acc))
+                   acc)))
              (m/-children schema))
             (conj (fn [x in acc]
                     (reduce-kv
@@ -128,20 +132,7 @@
                (not continue?) (reduced)))
            acc explainers))))))
 
-(defn- pattern-entry-parser 
-  [entry-parser]
-  (reify
-    m/EntryParser
-    (-entry-keyset [_] (m/-entry-keyset entry-parser))
-    (-entry-children 
-      [_]
-      (for [[k props schema] (m/-entry-children entry-parser)]
-        [k (assoc props ::options (m/schema (options-of schema))) 
-         (val-of schema)]))
-    (-entry-entries [_] (m/-entry-entries entry-parser))
-    (-entry-forms [_] (m/-entry-forms entry-parser))))
-
-(defn pattern-map-schema
+(defn- pattern-map-schema
   ([map-schema]
    ^{:type ::into-schema}
    (reify
@@ -153,7 +144,7 @@
      (-properties-schema [_ _])
      (-children-schema [_ _])
      (-into-schema [parent _ _ _]
-       (let [entry-parser (pattern-entry-parser (m/-entry-parser map-schema))]
+       (let [entry-parser (m/-entry-parser map-schema)]
          ^{:type ::schema}
          (reify
            m/AST
@@ -177,11 +168,19 @@
            (-set [this key value] (m/-set-entries this key value))))))))
 
 ;;-------------------------------
-; Public
+; Public API
 
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
-   sequence of general maps."
+   sequence of general maps.
+
+  You can use this returned schema to check your pattern, using malli's `validate`/`validator`,
+  and `explain`/`explainer` functions.
+
+  The validator/explainer produced will try catch all problems which can be inferred from
+  the `data-schema`. For example, if a data schema specified a map only contains `:a` and `:b`
+  keys, patterns which asking for any other keys will fail. This makes a good strategy if you want
+  limit the visibility of your data to the users. Extremely useful for remote pulling."
   ([]
    (pattern-schema-of nil))
   ([data-schema]
@@ -222,7 +221,7 @@
   (m/explain ptn-schema '{:a ?}) ;=> nil
   (m/explain ptn-schema '{(:a) ?}) ;=> nil
   (m/explain ptn-schema '{(:a :default 0) ?});=> nil  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
-  
+
   ;;nesting pattern
   (def ptn-schema2 (pattern-schema-of [:map [:a [:map [:b :int]]]]))
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
@@ -230,11 +229,11 @@
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
   ;;disallow directly fetch nesting
   (m/explain ptn-schema2 '{:a ?}) ;=>> (complement nil?)
-  
+
   ;;sequential pattern
   (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
   (m/explain ptn-schema3 '[{:a ?} ?x :seq [1 2]]) ;=> nil
-  
+
   ;;with pattern can pick up function schema
   (def ptn-schema4 (pattern-schema-of [:map
                                        [:a [:=> [:cat :int :keyword] :int]]
@@ -244,4 +243,19 @@
   (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
   (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
+
+  ;;with pattern can nested
+  (def ptn-schema5 (pattern-schema-of [:map [:a [:=> [:cat :int] [:map [:b :string]]]]]))
+  (m/explain ptn-schema5 '{(:a :with [3]) {:b ?}}) ;=> nil
+
+  ;;for with pattern, its return type will be checked
+  (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> {:errors #(= 1 (count %))}
+  (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found "ok") ?}}) ;=> nil
+
+  ;;multiple options check
+  (m/explain ptn-schema5 {(list :a :not-found str :with [:ok])
+                          {(list :b :not-found 4) '?}}) ;=>> {:errors #(= 2 (count %))}
+
+  ;;batch result testing
+  (m/explain ptn-schema5 '{(:a :batch [[3] [2]]) {(:b :not-found "ok") ?}}) ;=> nil
   )
