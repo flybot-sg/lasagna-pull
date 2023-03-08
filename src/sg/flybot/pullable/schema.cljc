@@ -212,7 +212,7 @@
   (m/explain ptn-schema '{:a ?}) ;=> nil
   (m/explain ptn-schema '{(:a) ?}) ;=> nil
   (m/explain ptn-schema '{(:a :default 0) ?});=> nil  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
-  
+
   ;;nesting pattern
   (def ptn-schema2 (pattern-schema-of [:map [:a [:map [:b :int]]]]))
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
@@ -220,11 +220,11 @@
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
   ;;disallow directly fetch nesting
   (m/explain ptn-schema2 '{:a ?}) ;=>> (complement nil?)
-  
+
   ;;sequential pattern
   (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
   (m/explain ptn-schema3 '[{:a ?} ?x :seq [1 2]]) ;=> nil
-  
+
   ;;with pattern can pick up function schema
   (def ptn-schema4 (pattern-schema-of [:map
                                        [:a [:=> [:cat :int :keyword] :int]]
@@ -234,17 +234,19 @@
   (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
   (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
-  
+
   ;;with pattern can nested
   (def ptn-schema5 (pattern-schema-of [:map [:a [:=> [:cat :int] [:map [:b :string]]]]]))
   (m/explain ptn-schema5 '{(:a :with [3]) {:b ?}}) ;=> nil
-  
+
   ;;for with pattern, its return type will be checked
   (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> {:errors #(= 1 (count %))}
   (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found "ok") ?}}) ;=> nil
-  
+
   ;;multiple options check
-  (m/explain ptn-schema5 {(list :a :not-found str :with [:ok]) 
+  (m/explain ptn-schema5 {(list :a :not-found str :with [:ok])
                           {(list :b :not-found 4) '?}}) ;=>> {:errors #(= 2 (count %))}
-  
+
+  ;;batch result testing
+  (m/explain ptn-schema5 '{(:a :batch [[3] [2]]) {(:b :not-found "ok") ?}}) ;=> nil
   )
