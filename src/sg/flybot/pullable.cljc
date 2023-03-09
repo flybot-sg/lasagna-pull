@@ -6,9 +6,10 @@
    
    Pattern is a DSL in clojure data structure, specify how to extract
    information from data."
-  (:require
-   [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]))
+  (:require [malli.core :as m]
+            [sg.flybot.pullable.core :as core]
+            [sg.flybot.pullable.pattern :as ptn]
+            [sg.flybot.pullable.schema :as schema]))
 
 ;;## APIs
 
@@ -68,6 +69,18 @@
   ([modifier finalizer]
    (core/context-of modifier finalizer)))
 
+(defn run-query
+  "Query `data` on `pattern`, returns a pair. See `query` function. Convinient for one-time use pattern."
+  ([pattern data]
+   (run-query query pattern data))
+  ([f pattern data]
+   ((f pattern) data)))
+
+(defn lvar-val
+  "returns the value of `lvar` in a `query-result`"
+  [query-result lvar]
+  (-> query-result second (get lvar)))
+
 ^:rct/test
 (comment
   (defn my-ctx []
@@ -76,4 +89,16 @@
        (fn [_ [k v]] (when (number? v) (conj! shared v)) [k v])
        #(into % {:shared (persistent! shared)}))))
   ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> [{:a 3, :b 4} {:shared [4 4 3], ?a 4}]
+  ;;`run-query` is a convinient function over `query`
+  (run-query '{:a ?} {:a 1 :b 2}) ;=> [{:a 1} {}] 
+  ;;`lvar-var` returns a lvar's value from query result 
+  (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
   )
+
+(defn query-of
+  "returns an instrumented version of `pull/query` for `data-schema`"
+  ([data-schema]
+   (m/-instrument
+    {:schema [:=> [:cat (schema/pattern-schema-of data-schema)] fn?]
+     :scope #{:input}}
+    query)))

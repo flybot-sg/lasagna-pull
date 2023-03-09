@@ -11,3 +11,6 @@ cljs-test-runner-out
 
 # clerk related
 .clerk/cache/
+
+# vscode related
+.vscode/
