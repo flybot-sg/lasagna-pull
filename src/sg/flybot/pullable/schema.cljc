@@ -58,12 +58,12 @@
                   [:cat [:= :not-found] schema]
                   [:cat [:= :when] fn?]]
            (= :=> t)
-           (=>arg schema) 
-                 
-           (#{:fn (m/type fn?) :any} t)
+           (=>arg schema)
+           
+           (= :any t)
            (into [[:cat [:= :with] vector?]
                   [:cat [:= :batch] [:vector vector?]]])
-                 
+           
            (or (= :any t) (seq-type? t))
            (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]))
 
@@ -72,7 +72,7 @@
   (def try-val #(-> % (options-of) (m/explain %2)))
   (try-val :int [:default 5]) ;=> nil
   (try-val :int [:default :ok]) ;=>> (complement nil?)  
-  (try-val fn? [:with [3]]) ;=> nil 
+  (try-val [:=> [:cat :int] :string] [:with [3]]) ;=> nil
   )
 
 (defn- mark-ptn
@@ -170,6 +170,23 @@
 ;;-------------------------------
 ; Public API
 
+(defn normalize-schema 
+  "IMO malli's schema is too liberal, let's normalize it for some
+  alternative (a.k.a should not be allowed in the first place)"
+  [schema]
+  (let [t (m/type schema)]
+    (-> #_{:clj-kondo/ignore [:quoted-case-test-constant]}
+        (case t
+          'fn? [:=> [:cat :any] :any] 
+          schema)
+        (m/schema))))
+
+^:rct/test
+(comment
+  (normalize-schema :int) ;=>> #(= :int (m/type %))
+  (normalize-schema fn?) ;=>> #(= :=> (m/type %)) 
+  )
+
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
    sequence of general maps.
@@ -190,10 +207,11 @@
                      [:sequential [:map-of :any :any]]])
     (m/schema-walker
      (fn [sch]
-       (let [t (m/type sch)]
+       (let [sch (normalize-schema sch)
+             t (m/type sch)]
          (cond
            (= :map t)
-           (-> sch (pattern-map-schema))
+           (-> sch (pattern-map-schema) (mark-ptn))
 
            (= :map-of t)
            (-> sch
@@ -209,7 +227,9 @@
                (-> [:cat 
                     x 
                     [:? [:fn lvar?]] 
-                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]])
+                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
+                   (m/schema)
+                   (mark-ptn))
                sch))
 
            :else sch)))))))
@@ -260,4 +280,12 @@
   
   ;;batch result testing
   (m/explain ptn-schema5 '{(:a :batch [[3] [2]]) {(:b :not-found "ok") ?}}) ;=> nil
+  
+  (def ptn-schema6
+    (pattern-schema-of
+     [:sequential
+      [:map
+       [:name :string]
+       [:op [:=> [:cat :int] :int]]]]))
+  (m/explain ptn-schema6 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
   )

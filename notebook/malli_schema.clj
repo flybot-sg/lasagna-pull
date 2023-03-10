@@ -90,12 +90,7 @@
 (try! (pull/run-query sample-q '[{:name "square" (:op :with [3]) ?}] data-operations))
 
 ;; This is a correct answer.
-;; TODO A bug caught. Throws error now.
 
 (try! (pull/run-query sample-q '[{:name "square" (:op :with ["3"]) ?}] data-operations))
 
 ;; This fails because we send a string to the `:op` function value as its arguments.
-
-
-
-

@@ -1,8 +1,5 @@
 (ns user
-  "just for development")
+  "just for development"
+  (:require [nextjournal.clerk :as clerk]))
 
-(try
-  (:require '[nextjournal.clerk :as clerk])
-  (clerk/serve! {:watch-paths ["notebook" "src"]})
-  (catch Exception e 
-    (println e)))
+(clerk/serve! {:watch-paths ["notebook" "src"]})
