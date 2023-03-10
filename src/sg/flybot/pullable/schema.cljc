@@ -58,12 +58,12 @@
                   [:cat [:= :not-found] schema]
                   [:cat [:= :when] fn?]]
            (= :=> t)
-           (=>arg schema) 
-                 
-           (#{:fn (m/type fn?) :any} t)
+           (=>arg schema)
+           
+           (= :any t)
            (into [[:cat [:= :with] vector?]
                   [:cat [:= :batch] [:vector vector?]]])
-                 
+           
            (or (= :any t) (seq-type? t))
            (into [[:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]))))]]))
 
@@ -72,7 +72,7 @@
   (def try-val #(-> % (options-of) (m/explain %2)))
   (try-val :int [:default 5]) ;=> nil
   (try-val :int [:default :ok]) ;=>> (complement nil?)  
-  (try-val fn? [:with [3]]) ;=> nil 
+  (try-val [:=> [:cat :int] :string] [:with [3]]) ;=> nil
   )
 
 (defn- mark-ptn
@@ -128,8 +128,8 @@
         (let [x' (normalizer x)]
           (reduce
            (fn [acc explainer]
-             (cond-> (explainer x' in acc)
-               (not continue?) (reduced)))
+             (let [acc (explainer x' in acc)]
+               (cond-> acc (and (seq acc) (not continue?)) (reduced))))
            acc explainers))))))
 
 (defn- pattern-map-schema
@@ -170,6 +170,23 @@
 ;;-------------------------------
 ; Public API
 
+(defn normalize-schema 
+  "IMO malli's schema is too liberal, let's normalize it for some
+  alternative (a.k.a should not be allowed in the first place)"
+  [schema]
+  (let [t (m/type schema)]
+    (-> #_{:clj-kondo/ignore [:quoted-case-test-constant]}
+        (case t
+          'fn? [:=> [:cat :any] :any] 
+          schema)
+        (m/schema))))
+
+^:rct/test
+(comment
+  (normalize-schema :int) ;=>> #(= :int (m/type %))
+  (normalize-schema fn?) ;=>> #(= :=> (m/type %)) 
+  )
+
 (defn pattern-schema-of 
   "returns a pattern schema for given `data-schema`, default to general map or
    sequence of general maps.
@@ -190,10 +207,11 @@
                      [:sequential [:map-of :any :any]]])
     (m/schema-walker
      (fn [sch]
-       (let [t (m/type sch)]
+       (let [sch (normalize-schema sch)
+             t (m/type sch)]
          (cond
            (= :map t)
-           (-> sch (pattern-map-schema))
+           (-> sch (pattern-map-schema) (mark-ptn))
 
            (= :map-of t)
            (-> sch
@@ -209,7 +227,9 @@
                (-> [:cat 
                     x 
                     [:? [:fn lvar?]] 
-                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]])
+                    [:? [:alt [:cat [:= :seq] [:vector {:min 1 :max 2} :int]]]]]
+                   (m/schema)
+                   (mark-ptn))
                sch))
 
            :else sch)))))))
@@ -221,19 +241,21 @@
   (m/explain ptn-schema '{:a ?}) ;=> nil
   (m/explain ptn-schema '{(:a) ?}) ;=> nil
   (m/explain ptn-schema '{(:a :default 0) ?});=> nil  (m/explain ptn-schema '{(:a default :ok) ?}) ;=>> (complement nil?)
-
+  
   ;;nesting pattern
   (def ptn-schema2 (pattern-schema-of [:map [:a [:map [:b :int]]]]))
   (m/explain ptn-schema2 '{:a {:b :ok}}) ;=>> (complement nil?)
   (m/explain ptn-schema2 '{:a {(:b :default 0) ?}}) ;=> nil
+  ;;the validation is simple, just a short-circuit of explainer
   (m/validate ptn-schema2 '{:a {(:b :default :ok) ?}}) ;=> false
+  (m/validate ptn-schema2 '{:b ?});=> false
   ;;disallow directly fetch nesting
   (m/explain ptn-schema2 '{:a ?}) ;=>> (complement nil?)
-
+  
   ;;sequential pattern
   (def ptn-schema3 (pattern-schema-of [:sequential [:map [:a :string]]]))
   (m/explain ptn-schema3 '[{:a ?} ?x :seq [1 2]]) ;=> nil
-
+  
   ;;with pattern can pick up function schema
   (def ptn-schema4 (pattern-schema-of [:map
                                        [:a [:=> [:cat :int :keyword] :int]]
@@ -243,19 +265,36 @@
   (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
   (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
-
+  
   ;;with pattern can nested
   (def ptn-schema5 (pattern-schema-of [:map [:a [:=> [:cat :int] [:map [:b :string]]]]]))
   (m/explain ptn-schema5 '{(:a :with [3]) {:b ?}}) ;=> nil
-
+  
   ;;for with pattern, its return type will be checked
   (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found 5) ?}}) ;=>> {:errors #(= 1 (count %))}
   (m/explain ptn-schema5 '{(:a :with [3]) {(:b :not-found "ok") ?}}) ;=> nil
-
+  
   ;;multiple options check
   (m/explain ptn-schema5 {(list :a :not-found str :with [:ok])
                           {(list :b :not-found 4) '?}}) ;=>> {:errors #(= 2 (count %))}
-
+  
   ;;batch result testing
   (m/explain ptn-schema5 '{(:a :batch [[3] [2]]) {(:b :not-found "ok") ?}}) ;=> nil
+  
+  (def ptn-schema6
+    (pattern-schema-of
+     [:sequential
+      [:map
+       [:name :string]
+       [:op [:=> [:cat :int] :int]]]]))
+  (m/explain ptn-schema6 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
   )
+
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defn instrument!
+  "Instrument function `f`"
+  [data-schema f]
+  (m/-instrument
+   {:schema [:=> [:cat (sg.flybot.pullable.schema/pattern-schema-of data-schema)] fn?]
+    :scope #{:input}}
+   f))

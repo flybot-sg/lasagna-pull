@@ -8,3 +8,9 @@ target/
 docs/
 .portal/
 cljs-test-runner-out
+
+# clerk related
+.clerk/cache/
+
+# vscode related
+.vscode/
