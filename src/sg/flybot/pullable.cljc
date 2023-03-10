@@ -6,6 +6,7 @@
    
    Pattern is a DSL in clojure data structure, specify how to extract
    information from data."
+  #_{:clj-kondo/ignore [:unused-namespace]}
   (:require [sg.flybot.pullable.core :as core]
             [sg.flybot.pullable.pattern :as ptn]
             [sg.flybot.pullable.util :as util]))
