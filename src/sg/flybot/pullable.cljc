@@ -6,10 +6,9 @@
    
    Pattern is a DSL in clojure data structure, specify how to extract
    information from data."
-  (:require [malli.core :as m]
-            [sg.flybot.pullable.core :as core]
+  (:require [sg.flybot.pullable.core :as core]
             [sg.flybot.pullable.pattern :as ptn]
-            [sg.flybot.pullable.schema :as schema]))
+            [sg.flybot.pullable.util :as util]))
 
 ;;## APIs
 
@@ -95,10 +94,15 @@
   (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
   )
 
-(defn query-of
-  "returns an instrumented version of `pull/query` for `data-schema`"
-  ([data-schema]
-   (m/-instrument
-    {:schema [:=> [:cat (schema/pattern-schema-of data-schema)] fn?]
-     :scope #{:input}}
-    query)))
+#?(:clj
+   #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+   (defn query-of
+     "returns an instrumented version of `pull/query` for `data-schema`" 
+     ([data-schema]
+      #_{:clj-kondo/ignore [:unresolved-symbol]}
+      (util/optional-require 
+       [sg.flybot.pullable.schema :as schema]
+       #_{:clj-kondo/ignore [:unresolved-namespace]}
+       (schema/instrument! data-schema query)
+       (throw (ClassNotFoundException. "Need metosin/malli library in the classpath")))))
+   )

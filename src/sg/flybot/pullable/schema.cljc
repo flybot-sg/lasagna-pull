@@ -289,3 +289,12 @@
        [:op [:=> [:cat :int] :int]]]]))
   (m/explain ptn-schema6 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
   )
+
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defn instrument!
+  "Instrument function `f`"
+  [data-schema f]
+  (m/-instrument
+   {:schema [:=> [:cat (sg.flybot.pullable.schema/pattern-schema-of data-schema)] fn?]
+    :scope #{:input}}
+   f))
