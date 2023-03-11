@@ -29,7 +29,6 @@
 (defn transform-loc
   [zloc]
   (loop [loc zloc acc []]
-    #trace
     (if (zip/end? loc)
       acc
       (let [[dir elem]
