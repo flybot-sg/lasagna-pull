@@ -1,7 +1,8 @@
-;# Introduction to Lasagna-pull
 
 (ns introduction 
   (:require [sg.flybot.pullable :as pull]))
+
+;;# Introduction to Lasagna-pull
 
 ;;## Problem
 
