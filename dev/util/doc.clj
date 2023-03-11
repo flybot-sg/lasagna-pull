@@ -51,5 +51,6 @@
   (->> (zip/of-file from) transform-loc (apply str) (spit to)))
 
 (comment
-  (notebook->md {:from "notebook/introduction.clj" :to "/tmp/intro.md"})
+  ;;do the real transformation
+  (notebook->md {:from "notebook/introduction.clj" :to "README.md"})
   )

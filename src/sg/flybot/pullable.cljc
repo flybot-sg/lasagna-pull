@@ -81,6 +81,15 @@
   [query-result lvar]
   (-> query-result second (get lvar)))
 
+(defmacro qn 
+  "Define an anonymous query function (a.k.a qn)"
+  [args pattern & body]
+  (assert (every? #(.startsWith (name %) "?") args) "Every arguments must starts with ?")
+  `(let [q# (query ~pattern)]
+     (fn [data#]
+       (let [[~'_ {:syms ~args}] (q# data#)]
+         ~@body))))
+
 ^:rct/test
 (comment
   (defn my-ctx []
@@ -93,7 +102,10 @@
   (run-query '{:a ?} {:a 1 :b 2}) ;=> [{:a 1} {}] 
   ;;`lvar-var` returns a lvar's value from query result 
   (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
+  (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
+  ((qn [?a ?b] '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2})
   )
+  
 
 #?(:clj
    #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
@@ -105,5 +117,5 @@
        [sg.flybot.pullable.schema :as schema]
        #_{:clj-kondo/ignore [:unresolved-namespace]}
        (schema/instrument! data-schema query)
-       (throw (ClassNotFoundException. "Need metosin/malli library in the classpath")))))
-   )
+       (throw (ClassNotFoundException. "Need metosin/malli library in the classpath"))))))
+   

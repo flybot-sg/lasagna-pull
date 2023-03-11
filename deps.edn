@@ -1,4 +1,4 @@
-{:paths ["src"],
+{:paths ["src" "resources"],
  :deps {},
  :aliases
  {:dev
@@ -6,8 +6,9 @@
    :extra-deps
    {metosin/malli {:mvn/version "0.10.2"},
     com.bhauman/figwheel-main {:mvn/version "0.2.18"},
-    io.github.robertluo/rich-comment-tests {:git/tag "v1.1.0", :git/sha "6d01d12"}
-    io.github.nextjournal/clerk {:mvn/version "0.13.842"}}},
+    io.github.robertluo/rich-comment-tests {:git/tag "v1.1.0", :git/sha "6d01d12"}}},
+  :notebook ;for clerk notebook, must use with :dev
+  {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.13.842"}}},
   :test ;run testing, most use with :dev
   {:extra-deps
    {lambdaisland/kaocha {:mvn/version "1.80.1274"},
