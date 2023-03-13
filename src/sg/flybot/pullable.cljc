@@ -76,34 +76,21 @@
   ([f pattern data]
    ((f pattern) data)))
 
-(defn lvar-val
-  "returns the value of `lvar` in a `query-result`"
-  [query-result lvar]
-  (-> query-result second (get lvar)))
-
-(defmacro qn 
+(defmacro qfn 
   "Define an anonymous query function (a.k.a qn)"
   [pattern & body]
   (let [args (-> (util/named-lvars-in-pattern pattern) vec)]
     `(let [q# (query ~pattern)]
        (fn [data#]
-         (let [[~'_ {:syms ~args}] (q# data#)]
+         (let [{:syms ~args} (q# data#)]
            ~@body)))))
 
 ^:rct/test
 (comment
-  (defn my-ctx []
-    (let [shared (transient [])]
-      (context-of
-       (fn [_ [k v]] (when (number? v) (conj! shared v)) [k v])
-       #(into % {:shared (persistent! shared)}))))
-  ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> [{:a 3, :b 4} {:shared [4 4 3], ?a 4}]
   ;;`run-query` is a convinient function over `query`
-  (run-query '{:a ?} {:a 1 :b 2}) ;=> [{:a 1} {}] 
-  ;;`lvar-var` returns a lvar's value from query result 
-  (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
+  (run-query '{:a ?} {:a 1 :b 2}) ;=> {& {:a 1}} 
   (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
-  ((qn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2})
+  ((qfn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2}) ;=> 3
   )
   
 

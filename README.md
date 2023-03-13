@@ -140,7 +140,7 @@
 > There is a macro for you to define a *query function* just like `fn`, but takes
 > a pattern to match data. 
 ```clojure
-(def find-add (pull/qn [?x ?y] '{:x ?x :y ?y} (+ ?x ?y)))
+(def find-add (pull/qn '{:x ?x :y ?y} (+ ?x ?y)))
 (comment
   ;=>
   #'introduction/find-add

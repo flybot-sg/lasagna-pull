@@ -46,10 +46,10 @@
 
 (defn run-bind
   [q data]
-  (let [fac (some-> q meta ::context)
+  (let [fac  (-> q meta ::context)
         rslt (run-query q data)
-        m (-finalize fac {})]
-    [rslt m]))
+        m    (-finalize fac {})]
+    (when rslt (assoc m '& rslt))))
 
 ;; Implementation
 

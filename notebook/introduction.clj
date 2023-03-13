@@ -112,7 +112,7 @@
 ;;> There is a macro for you to define a *query function* just like `fn`, but takes
 ;;> a pattern to match data. 
 
-(def find-add (pull/qn [?x ?y] '{:x ?x :y ?y} (+ ?x ?y)))
+(def find-add (pull/qfn '{:x ?x :y ?y} (+ ?x ?y)))
 
 ;; This function accept data and do the rest just like `fn`
  
