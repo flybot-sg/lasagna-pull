@@ -5,11 +5,11 @@
   "Pull from data structure by using pattern.
    
    Pattern is a DSL in clojure data structure, specify how to extract
-   information from data."
-  #_{:clj-kondo/ignore [:unused-namespace]}
-  (:require [sg.flybot.pullable.core :as core]
-            [sg.flybot.pullable.pattern :as ptn]
-            [sg.flybot.pullable.util :as util]))
+   information from data." 
+  (:require
+   [sg.flybot.pullable.core :as core]
+   [sg.flybot.pullable.pattern :as ptn]
+   [sg.flybot.pullable.util :as util]))
 
 ;;## APIs
 
@@ -83,12 +83,12 @@
 
 (defmacro qn 
   "Define an anonymous query function (a.k.a qn)"
-  [args pattern & body]
-  (assert (every? #(.startsWith (name %) "?") args) "Every arguments must starts with ?")
-  `(let [q# (query ~pattern)]
-     (fn [data#]
-       (let [[~'_ {:syms ~args}] (q# data#)]
-         ~@body))))
+  [pattern & body]
+  (let [args (-> (util/named-lvars-in-pattern pattern) vec)]
+    `(let [q# (query ~pattern)]
+       (fn [data#]
+         (let [[~'_ {:syms ~args}] (q# data#)]
+           ~@body)))))
 
 ^:rct/test
 (comment
@@ -103,7 +103,7 @@
   ;;`lvar-var` returns a lvar's value from query result 
   (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
   (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
-  ((qn [?a ?b] '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2})
+  ((qn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2})
   )
   
 
