@@ -2,7 +2,7 @@
 (ns introduction 
   (:require [sg.flybot.pullable :as pull]))
 ```
-# Introduction to Lasagna-pull, query data from deep data structure
+# Lasagna-pull, query data from deep data structure
 [![CI](https://github.com/flybot-sg/lasagna-pull/actions/workflows/main.yml/badge.svg)](https://github.com/flybot-sg/lasagna-pull/actions/workflows/main.yml)
 [![Code Coverage](https://codecov.io/gh/flybot-sg/lasagna-pull/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/lasagna-pull)
 [![Clojars](https://img.shields.io/clojars/v/sg.flybot/lasagna-pull.svg)](https://clojars.org/sg.flybot/lasagna-pull)
@@ -26,9 +26,9 @@
               {'lambdaisland/kaocha {:mvn/version "1.80.1274"}},
               :main-opts ["-m" "kaocha.runner"]}}}})
 (comment
-;=>
-#'introduction/data
-)
+  ;=>
+  #'introduction/data
+  )
 ```
  In `clojure.core`, we have `get`, `get-in` to extract information 
  from a map and we are very familiar with them. However, if we have multiple 
@@ -41,9 +41,9 @@
       test-extra-path (get-in data [:deps :aliases :test :extra-paths])]
   (concat global-path dev-extra-path test-extra-path))
 (comment
-;=>
-("src" "dev" "test")
-)
+  ;=>
+  ("src" "dev" "test")
+  )
 ```
  We have to call `get`/`get-in` multiple times manually.
 ## Bring Lasagna-pull in
@@ -53,9 +53,9 @@
                       :aliases {:dev  {:extra-paths ?dev}
                                 :test {:extra-paths ?test}}}})
 (comment
-;=>
-#'introduction/pattern
-)
+  ;=>
+  #'introduction/pattern
+  )
 ```
  As you may see above, lasagna-pull using a pattern which mimics your data
  to match it, a logic variable marks the piece of information we are interested,
@@ -64,9 +64,9 @@
 (let [[_ {:syms [?global ?dev ?test]}] (pull/run-query pattern data)]
      (concat ?global ?dev ?test))
 (comment
-;=>
-("src" "dev" "test")
-)
+  ;=>
+  ("src" "dev" "test")
+  )
 ```
  `pull/match` takes a pattern and match it to data, returns a pair, and
  the second item of the pair is a map, contains all logical variable (a.k.a lvar)
@@ -78,9 +78,9 @@
 ```clojure
 (-> (pull/run-query pattern data) first)
 (comment
-;=>
-{:deps {:paths ["src"], :aliases {:test {:extra-paths ["test"]}, :dev {:extra-paths ["dev"]}}}}
-)
+  ;=>
+  {:deps {:paths ["src"], :aliases {:test {:extra-paths ["test"]}, :dev {:extra-paths ["dev"]}}}}
+  )
 ```
  Just check the first item of the matching result, it only contains
  information we asked, retaining the original data shape.
@@ -93,26 +93,26 @@
                              {:name "Orange", :in-stock 0}]
                     :likes [{:person-name "Alan" :fruit-name "Apple"}]})
 (comment
-;=>
-#'introduction/person&fruits
-)
+  ;=>
+  #'introduction/person&fruits
+  )
 ```
  The pattern to select inside the sequence of maps just look like the data itself:
 ```clojure
 (pull/run-query '{:persons [{:name ?}]} person&fruits)
 (comment
-;=>
-[{:persons [{:name "Alan"} {:name "Susan"}]} {}]
-)
+  ;=>
+  [{:persons [{:name "Alan"} {:name "Susan"}]} {}]
+  )
 ```
  Logical variable `?` is unnamed, it means it will included in the query result,
  but not in the resolved binding map. 
 ```clojure
 (-> (pull/run-query '{:persons [{:name ? :age ?} ?names]} person&fruits) (pull/lvar-val '?names))
 (comment
-;=>
-[{:age 20, :name "Alan"} {:age 12, :name "Susan"}]
-)
+  ;=>
+  [{:age 20, :name "Alan"} {:age 12, :name "Susan"}]
+  )
 ```
  by append a logical variable in the sequence marking vector, we can capture
  a sequence of map.
@@ -133,7 +133,24 @@
                     person&fruits)
     (pull/lvar-val '?in-stock))
 (comment
-;=>
-10
-)
+  ;=>
+  10
+  )
+```
+> There is a macro for you to define a *query function* just like `fn`, but takes
+> a pattern to match data. 
+```clojure
+(def find-add (pull/qn [?x ?y] '{:x ?x :y ?y} (+ ?x ?y)))
+(comment
+  ;=>
+  #'introduction/find-add
+  )
+```
+ This function accept data and do the rest just like `fn`
+```clojure
+(find-add {:x 5 :y 15})
+(comment
+  ;=>
+  20
+  )
 ```

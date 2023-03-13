@@ -108,3 +108,13 @@
                       :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
                     person&fruits)
     (pull/lvar-val '?in-stock))
+
+;;> There is a macro for you to define a *query function* just like `fn`, but takes
+;;> a pattern to match data. 
+
+(def find-add (pull/qn [?x ?y] '{:x ?x :y ?y} (+ ?x ?y)))
+
+;; This function accept data and do the rest just like `fn`
+
+(find-add {:x 5 :y 15})
+
