@@ -87,6 +87,14 @@
 
 ^:rct/test
 (comment
+  ;;testing context
+  (defn my-ctx []
+    (let [shared (transient [])]
+      (context-of
+       (fn [_ [k v]] (when (number? v) (conj! shared v)) [k v])
+       #(into % {:shared (persistent! shared)}))))
+  ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> {& {:a 3, :b 4} :shared [4 4 3], ?a 4}
+  
   ;;`run-query` is a convinient function over `query`
   (run-query '{:a ?} {:a 1 :b 2}) ;=> {& {:a 1}} 
   (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
