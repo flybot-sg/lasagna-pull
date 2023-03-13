@@ -154,3 +154,128 @@
   20
   )
 ```
+ ## Query Options
+ In addition to basic query, Lasagna-pull support pattern options, it is a decorator
+ on the key part of a pattern, let you fine tune the query.
+ An option is a pair, a keyword followed by its arguments.
+
+ ### General options
+
+ These options does not require a value in a specific type.
+
+ #### `:not-found` option
+
+ The easiest option is `:not-found`, it provides a default value if a value is not
+ found.
+```clojure
+(-> (pull/run-query '{(:a :not-found 0) ?a} {:b 3}) (pull/lvar-val '?a))
+(comment
+  ;=>
+  0
+  )
+```
+ #### `:when` option
+
+ `:when` option has a predict function as it argument, a match only succeed when this
+ predict fulfilled by the value.
+```clojure
+(def q (pull/query {(list :a :when odd?) '?a}))
+(comment
+  ;=>
+  #'introduction/q
+  )(-> (q {:a 3 :b 3}) (pull/lvar-val '?a))
+(comment
+  ;=>
+  3
+  )
+```
+ This will failed to match:
+```clojure
+(-> (q {:a 2 :b 3}) (pull/lvar-val '?a))
+```
+ Note that the basic filter can also be thought as a `:when` option.
+ You can combine options together, they will be applied by their order:
+```clojure
+(pull/run-query {(list :a :when even? :not-found 0) '?} {:a -1 :b 3})
+(comment
+  ;=>
+  [{:a 0} {}]
+  )
+```
+ ### Options requires values be a specific type
+ #### `:seq` option
+ 
+ If you are about to match a big sequence, you might want to do pagination. It is essential
+ if you values are lazy.
+```clojure
+(-> (pull/run-query '{(:a :seq [5 5]) ?} {:a (range 1000)}))
+(comment
+  ;=>
+  [{:a (5 6 7 8 9)} {}]
+  )
+```
+ The design of putting options in the key part of the patterns, enable us
+ to do nested query.
+```clojure
+(def range-data {:a (map (fn [i] {:b i}) (range 100))})
+(comment
+  ;=>
+  #'introduction/range-data
+  )(-> (pull/run-query '{(:a :seq [5 5]) [{:b ?} ?b]} range-data) (pull/lvar-val '?b))
+(comment
+  ;=>
+  [{:b 5} {:b 6} {:b 7} {:b 8} {:b 9}]
+  )
+```
+ #### `:with` and `:batch` options
+
+ You may store a function as a value in your map, then when querying it, you
+ can apply arguments to it, `:with` enable you to do it:
+```clojure
+(defn square [x] (* x x))
+(comment
+  ;=>
+  #'introduction/square
+  )(-> (pull/run-query '{(:a :with [5]) ?a} {:a square}) (pull/lvar-val '?a))
+(comment
+  ;=>
+  25
+  )
+```
+ And `:batch` will apply many times on it, as if it is a sequence:
+```clojure
+(-> (pull/run-query {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a}
+                    {:a square})
+    (pull/lvar-val '?a))
+(comment
+  ;=>
+  (25 36 49 64 81)
+  )
+```
+ These options not just for conviniece, if the embeded functions invoked by 
+ a query has side effects, these options could do 
+ [GraphQL's mutation](https://graphql.org/learn/queries/#mutations).
+```clojure
+(def a (atom 0))
+(comment
+  ;=>
+  #'introduction/a
+  )(-> (pull/run-query {(list :a :with [5]) '?a} {:a (fn [x] (swap! a + x))})
+    (pull/lvar-val '?a))
+(comment
+  ;=>
+  5
+  )
+```
+ And the atom has been changed:
+```clojure
+@a
+(comment
+  ;=>
+  5
+  )
+```
+
+ ## License
+ Copyright. © 2022 Flybot Pte. Ltd.
+ Apache License 2.0, http://www.apache.org/licenses/
