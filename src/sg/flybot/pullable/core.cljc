@@ -49,7 +49,7 @@
   (let [fac  (-> q meta ::context)
         rslt (run-query q data)
         m    (-finalize fac {})]
-    (when rslt (assoc m '& rslt))))
+    (when rslt (assoc m '&? rslt))))
 
 ;; Implementation
 

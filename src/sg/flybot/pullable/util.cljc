@@ -36,14 +36,14 @@
 (defn named-lvars-in-pattern
   "returns named lvars in `pattern`"
   [pattern]
-  (let [rslt (transient #{})
+  (let [rslt (transient #{'&?})
         collector (fn [x] (when (named-lvar? x) (conj! rslt x)) x)]
     (walk/postwalk collector pattern)
     (persistent! rslt)))
 
 ^:rct/test
 (comment
-  (named-lvars-in-pattern '{:a ? :b ?b :c ?c}) ;=> #{?b ?c}
+  (named-lvars-in-pattern '{:a ? :b ?b :c ?c}) ;=> #{?b ?c &?}
   )
 
 
