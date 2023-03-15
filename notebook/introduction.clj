@@ -89,10 +89,11 @@
 ;;### Filter a value
 ;;
 ;; Sometimes, we need filtering a map on some keys. It is very intuitive to specific
-;; it in your pattern, let's find alan's age:
+;; it in your pattern, let's find Alan's age:
 
 ((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits)
 
+;;
 ;;### Using same named lvar multiple times to join
 ;;
 ;; If a named lvar bound for more than one time, its value has to be the same, otherwise

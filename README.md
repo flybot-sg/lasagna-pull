@@ -91,10 +91,11 @@
 ### Filter a value
 
  Sometimes, we need filtering a map on some keys. It is very intuitive to specific
- it in your pattern, let's find alan's age:
+ it in your pattern, let's find Alan's age:
 ```clojure
 ((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits)
 ```
+
 ### Using same named lvar multiple times to join
 
  If a named lvar bound for more than one time, its value has to be the same, otherwise
@@ -212,7 +213,7 @@
 (def my-data-schema [:map [:a :int] [:b :keyword]]);=> #'introduction/my-data-schema
 
 (pull/with-data-schema my-data-schema
-  (qfn '{:c ?c} ?c));=> #object[introduction$eval18410$fn__18411$fn__18412 0x5b67d66c "introduction$eval18410$fn__18411$fn__18412@5b67d66c"]
+  (qfn '{:c ?c} ?c));=> #object[introduction$eval18410$fn__18411$fn__18412 0x123255d "introduction$eval18410$fn__18411$fn__18412@123255d"]
 
 ```
  The above throws an exception! Because once you specified a data schema, you only
@@ -222,7 +223,7 @@
  Lasagna-pull try to find all schema problems:
 ```clojure
 (pull/with-data-schema my-data-schema
-  (qfn '{(:a :not-found "3") ?} &?));=> #object[introduction$eval18418$fn__18419$fn__18420 0x4bd3ea99 "introduction$eval18418$fn__18419$fn__18420@4bd3ea99"]
+  (qfn '{(:a :not-found "3") ?} &?));=> #object[introduction$eval18418$fn__18419$fn__18420 0x5f91ae3e "introduction$eval18418$fn__18419$fn__18420@5f91ae3e"]
 
 ```
  Also triggers an exception, because `:a` is an `:int` as in the data schema,
