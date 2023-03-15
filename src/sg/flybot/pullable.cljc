@@ -79,11 +79,11 @@
 (defmacro qfn 
   "Define an anonymous query function (a.k.a qn)"
   [pattern & body]
-  (let [args (-> (util/named-lvars-in-pattern pattern) vec)]
-    `(let [q# (query ~pattern)]
-       (fn [data#]
-         (let [{:syms ~args} (q# data#)]
-           ~@body)))))
+  (let [syms (-> (util/named-lvars-in-pattern pattern) vec)]
+  `(let [q# (query ~pattern)]
+     (fn [data#]
+       (let [{:syms ~syms} (q# data#)]
+         ~@body)))))
 
 ^:rct/test
 (comment
@@ -95,7 +95,7 @@
        #(into % {:shared (persistent! shared)}))))
   ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> {&? {:a 3, :b 4} :shared [4 4 3], ?a 4}
   
-  (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
+  (macroexpand-1 '(qfn {:a ?a :b ?b} (+ ?a ?b)))
   ((qfn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2}) ;=> 3
   )
   
