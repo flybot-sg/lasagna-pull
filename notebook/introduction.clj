@@ -176,6 +176,32 @@
 ;; And the atom has been changed:
 @a
 
+;; ## Malli schema support
+;;
+;; Lasagna-pull has optional for support [malli]() schemas.
+;; In Clojure, by put malli in your dependencies, it automatically check your data
+;; pattern when you make queries to make sure the syntax is correct.
+;;
+;; Your query patterns not only follow the rules of pattern, it also should conform 
+;; to your data schema. It is especially important when you want to expose your data to
+;; the external world.
+;; `with-data-schema` macro let you include your customized data schema (applies to your data),
+;; then in the body, Lasagna-pull do a deeper check for the pattern. Try to find if 
+;; the query pattern conforms to the meaning of data schema.
+
+(def my-data-schema [:map [:a :int] [:b :keyword]])
+(pull/with-data-schema my-data-schema
+  (qfn '{:c ?c} ?c))
+
+;; The above throws an exception! Because once you specified a data schema, you only
+;; allow users to query values documented in the schema (i.e. closeness of map). 
+;; Since `:c` is not included in the schema, querying `:c` is invalid.
+;;
+;; Lasagna-pull try to find all schema problems:
+(pull/with-data-schema my-data-schema
+  (qfn '{(:a :not-found "3") ?} &?))
+;; Also triggers an exception, because `:a` is an `:int` as in the data schema,
+;; while you provide a `:not-found` pattern option value which is not an integer.
 ;;
 ;; ## License
 ;; Copyright. © 2022 Flybot Pte. Ltd.

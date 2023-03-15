@@ -7,7 +7,7 @@
   "apply project default to `opts`"
   [opts]
   (let [defaults {:lib     'sg.flybot/lasagna-pull
-                  :version (format "0.3.%s" (b/git-count-revs nil))
+                  :version (format "0.4.%s" (b/git-count-revs nil))
                   :scm     {:url "https://github.com/flybot-sg/lasagna-pull"}}]
     (merge defaults opts)))
 

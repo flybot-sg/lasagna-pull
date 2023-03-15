@@ -12,7 +12,7 @@
   {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.13.842"}}},
   
   :readme ;for generating REAME, must use with :dev
-  {:extra-deps {io.github.robertluo/clerk-doc #:git{:tag "v0.1.0" :sha "bca28cd"}}
+  {:extra-deps {io.github.robertluo/clerk-doc #:git{:sha "d2228bee0803a9b96cc9a9b03ca3e0dcc1500961"}}
    :exec-fn robertluo.clerk-doc/clj->md
    :exec-args {:from "notebook/introduction.clj" :to "README.md"
                :eval-code? true :ai-improve? false}}

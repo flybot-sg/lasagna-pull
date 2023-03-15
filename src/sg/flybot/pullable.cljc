@@ -6,12 +6,13 @@
    
    Pattern is a DSL in clojure data structure, specify how to extract
    information from data." 
-  (:require
-   [sg.flybot.pullable.core :as core]
-   [sg.flybot.pullable.pattern :as ptn]
-   [sg.flybot.pullable.util :as util]))
+  (:require [sg.flybot.pullable.core :as core]
+            [sg.flybot.pullable.pattern :as ptn] 
+            [sg.flybot.pullable.util :as util]))
 
 ;;## APIs
+
+(def ^:dynamic *data-schema* nil)
 
 (defn query
   "Returns a query function from `pattern`. A query function can be used to extract information
@@ -48,11 +49,24 @@
   ([pattern]
    (query pattern nil))
   ([pattern context]
+   #?(:clj
+      #_{:clj-kondo/ignore [:unresolved-symbol]}
+      (util/optional-require
+       [sg.flybot.pullable.schema :as schema]
+       #_{:clj-kondo/ignore [:unresolved-namespace]}
+       (schema/check-pattern! *data-schema* pattern)
+       nil))
    (fn [data]
      (-> context
          core/query-maker
          (ptn/->query pattern ptn/filter-maker)
          (core/run-bind data)))))
+
+^:rct/test
+(comment
+  (query {:a 3}) ;=>> fn?
+  (query 3) ;throws=>> #:error{:class clojure.lang.ExceptionInfo}
+  )
 
 (defn context-of
   "returns a query context of function `modifier` and function `finalizer`(default `clojure.core/identity`),
@@ -97,18 +111,17 @@
   
   (macroexpand-1 '(qfn {:a ?a :b ?b} (+ ?a ?b)))
   ((qfn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2}) ;=> 3
-  )
-  
+  ) 
 
 #?(:clj
-   #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-   (defn query-of
-     "returns an instrumented version of `pull/query` for `data-schema`" 
-     ([data-schema]
-      #_{:clj-kondo/ignore [:unresolved-symbol]}
-      (util/optional-require 
-       [sg.flybot.pullable.schema :as schema]
-       #_{:clj-kondo/ignore [:unresolved-namespace]}
-       (schema/instrument! data-schema query)
-       (throw (ClassNotFoundException. "Need metosin/malli library in the classpath"))))))
-   
+   (defmacro with-data-schema 
+     [schema & body]
+     `(with-bindings {~(var *data-schema*) ~schema}
+        ~@body)))
+
+^:rct/test
+(comment
+  (macroexpand-1 '(with-schema nil nil))
+  (with-data-schema [:map [:a :int]] (qfn '{:a 3})) ;=>> fn?
+  (with-data-schema [:map [:a :int]] (qfn '{:a "3"})) ;throws=>> some?
+  )

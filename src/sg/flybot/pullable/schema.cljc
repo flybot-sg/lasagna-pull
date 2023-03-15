@@ -90,7 +90,7 @@
   [schema]
   (if (ptn? schema)
     schema
-    (m/schema [:or schema [:fn lvar?] fn?])))
+    (m/schema [:or schema [:fn lvar?]])))
 
 (defn- explain-options
   "returns a pair of result schema, and explaining result for options"
@@ -290,11 +290,16 @@
   (m/explain ptn-schema6 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
   )
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defn instrument!
-  "Instrument function `f`"
-  [data-schema f]
-  (m/-instrument
-   {:schema [:=> [:cat (sg.flybot.pullable.schema/pattern-schema-of data-schema)] fn?]
-    :scope #{:input}}
-   f))
+(defn check-pattern!
+  "check `pattern` against `data-schema`, if not conform throwing an ExceptionInfo
+   with ex-data of explain result."
+  [data-schema pattern]
+  (let [ptn-sch (pattern-schema-of data-schema)]
+    (when-not (m/validate ptn-sch pattern) 
+      (throw (ex-info "Wrong pattern" (m/explain ptn-sch pattern))))))
+
+^:rct/test
+(comment
+  (check-pattern! nil 3) ;throws=>> some?
+  (check-pattern! nil {}) ;=> nil
+  )

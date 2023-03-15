@@ -24,11 +24,8 @@
              {:extra-paths ["test"],
               :extra-deps
               {'lambdaisland/kaocha {:mvn/version "1.80.1274"}},
-              :main-opts ["-m" "kaocha.runner"]}}}})
-(comment
-  ;=>
-  #'introduction/data
-  )
+              :main-opts ["-m" "kaocha.runner"]}}}});=> #'introduction/data
+
 ```
  In `clojure.core`, we have `get`, `get-in` to extract information 
  from a map and we are very familiar with them. However, if we have multiple 
@@ -39,11 +36,8 @@
 (let [global-path     (get-in data [:deps :paths])
       dev-extra-path  (get-in data [:deps :aliases :dev :extra-paths])
       test-extra-path (get-in data [:deps :aliases :test :extra-paths])]
-  (concat global-path dev-extra-path test-extra-path))
-(comment
-  ;=>
-  ("src" "dev" "test")
-  )
+  (concat global-path dev-extra-path test-extra-path));=> ("src" "dev" "test")
+
 ```
  We have to call `get`/`get-in` multiple times manually.
 ## Bring Lasagna-pull in
@@ -53,11 +47,8 @@
                :aliases {:dev  {:extra-paths ?dev}
                          :test {:extra-paths ?test}}}}
       (concat ?global ?dev ?test))
- data)
-(comment
-  ;=>
-  ("src" "dev" "test")
-  )
+ data);=> ("src" "dev" "test")
+
 ```
  `pull/qfn` returns a query function, which matches data using a Lasagna pattern.
  A lasagna pattern mimics your data, you specify the pieces of information
@@ -71,11 +62,8 @@
  `select-keys` to shrink a map, and `map` it over a sequence of maps.
  Lasagna-pull provide this with an implicit binding `&?`:
 ```clojure
-((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?) data)
-(comment
-  ;=>
-  {:deps {:paths ["src"], :aliases {:dev {:extra-paths ["dev"]}}}}
-  )
+((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?) data);=> {:deps {:paths ["src"], :aliases {:dev {:extra-paths ["dev"]}}}}
+
 ```
  The unnamed binding `?` in the pattern is a placeholder, it will appear
  in `&?`.
@@ -86,28 +74,19 @@
                               {:name "Susan", :age 12, :sex :female}]
                     :fruits [{:name "Apple", :in-stock 10}
                              {:name "Orange", :in-stock 0}]
-                    :likes [{:person-name "Alan" :fruit-name "Apple"}]})
-(comment
-  ;=>
-  #'introduction/person&fruits
-  )
+                    :likes [{:person-name "Alan" :fruit-name "Apple"}]});=> #'introduction/person&fruits
+
 ```
  The pattern to select inside the sequence of maps just look like the data itself:
 ```clojure
-((qfn '{:persons [{:name ?}]} &?) person&fruits)
-(comment
-  ;=>
-  {:persons [{:name "Alan"} {:name "Susan"}]}
-  )
+((qfn '{:persons [{:name ?}]} &?) person&fruits);=> {:persons [{:name "Alan"} {:name "Susan"}]}
+
 ```
  by append a logical variable in the sequence marking vector, we can capture
  a sequence of map.
 ```clojure
-((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits)
-(comment
-  ;=>
-  ("Alan" "Susan")
-  )
+((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits);=> ("Alan" "Susan")
+
 ```
 ### Filter a value
 
@@ -126,11 +105,8 @@
         :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
         :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
       ?in-stock)
- person&fruits)
-(comment
-  ;=>
-  10
-  )
+ person&fruits);=> 10
+
 ```
  ## Pattern Options
 
@@ -147,26 +123,18 @@
  The easiest option is `:not-found`, it provides a default value if a value is not
  found.
 ```clojure
-((qfn '{(:a :not-found 0) ?a} ?a) {:b 3})
-(comment
-  ;=>
-  0
-  )
+((qfn '{(:a :not-found 0) ?a} ?a) {:b 3});=> 0
+
 ```
  #### `:when` option
 
  `:when` option has a predict function as it argument, a match only succeed when this
  predict fulfilled by the value.
 ```clojure
-(def q (qfn {(list :a :when odd?) '?a} ?a))
-(comment
-  ;=>
-  #'introduction/q
-  )(q {:a 3 :b 3})
-(comment
-  ;=>
-  3
-  )
+(def q (qfn {(list :a :when odd?) '?a} ?a));=> #'introduction/q
+
+(q {:a 3 :b 3});=> 3
+
 ```
  This will failed to match, e.g. returns nil:
 ```clojure
@@ -176,11 +144,8 @@
 
  You can combine options together, they will be applied by their order:
 ```clojure
-((qfn {(list :a :when even? :not-found 0) '?} &?) {:a -1 :b 3})
-(comment
-  ;=>
-  {:a 0}
-  )
+((qfn {(list :a :when even? :not-found 0) '?} &?) {:a -1 :b 3});=> {:a 0}
+
 ```
  ### Pattern options requires values be a specific type
 
@@ -189,71 +154,47 @@
  If you are about to match a big sequence, you might want to do pagination. It is essential
  if you values are lazy.
 ```clojure
-((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)})
-(comment
-  ;=>
-  {:a (5 6 7 8 9)}
-  )
+((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)});=> {:a (5 6 7 8 9)}
+
 ```
  The design of putting options in the key part of the patterns, enable us
  to do nested query.
 ```clojure
-(def range-data {:a (map (fn [i] {:b i}) (range 100))})
-(comment
-  ;=>
-  #'introduction/range-data
-  )((qfn '{(:a :seq [5 5]) [{:b ?} ?bs]} (map :b ?bs)) range-data)
-(comment
-  ;=>
-  (5 6 7 8 9)
-  )
+(def range-data {:a (map (fn [i] {:b i}) (range 100))});=> #'introduction/range-data
+
+((qfn '{(:a :seq [5 5]) [{:b ?} ?bs]} (map :b ?bs)) range-data);=> (5 6 7 8 9)
+
 ```
  #### `:with` and `:batch` options
 
  You may store a function as a value in your map, then when querying it, you
  can apply arguments to it, `:with` enable you to do it:
 ```clojure
-(defn square [x] (* x x))
-(comment
-  ;=>
-  #'introduction/square
-  )((qfn '{(:a :with [5]) ?a} ?a) {:a square})
-(comment
-  ;=>
-  25
-  )
+(defn square [x] (* x x));=> #'introduction/square
+
+((qfn '{(:a :with [5]) ?a} ?a) {:a square});=> 25
+
 ```
  And `:batch` will apply many times on it, as if it is a sequence:
 ```clojure
 ((qfn {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a} ?a)
- {:a square})
-(comment
-  ;=>
-  (25 36 49 64 81)
-  )
+ {:a square});=> (25 36 49 64 81)
+
 ```
  These options not just for conviniece, if the embeded functions invoked by 
  a query has side effects, these options could do 
  [GraphQL's mutation](https://graphql.org/learn/queries/#mutations).
 ```clojure
-(def a (atom 0))
-(comment
-  ;=>
-  #'introduction/a
-  )((qfn {(list :a :with [5]) '?a} ?a)
- {:a (fn [x] (swap! a + x))})
-(comment
-  ;=>
-  5
-  )
+(def a (atom 0));=> #'introduction/a
+
+((qfn {(list :a :with [5]) '?a} ?a)
+ {:a (fn [x] (swap! a + x))});=> 5
+
 ```
  And the atom has been changed:
 ```clojure
-@a
-(comment
-  ;=>
-  5
-  )
+@a;=> 5
+
 ```
 
  ## License
