@@ -1,6 +1,6 @@
 ```clojure
 (ns introduction 
-  (:require [sg.flybot.pullable :as pull]))
+  (:require [sg.flybot.pullable :as pull :refer [qfn]]))
 ```
 # Lasagna-pull, query data from deep data structure
 [![CI](https://github.com/flybot-sg/lasagna-pull/actions/workflows/main.yml/badge.svg)](https://github.com/flybot-sg/lasagna-pull/actions/workflows/main.yml)
@@ -49,41 +49,36 @@
 ## Bring Lasagna-pull in
  Using lasagna-pull, we can do it in a more intuitive way:
 ```clojure
-(def pattern '{:deps {:paths   ?global
-                      :aliases {:dev  {:extra-paths ?dev}
-                                :test {:extra-paths ?test}}}})
-(comment
-  ;=>
-  #'introduction/pattern
-  )
-```
- As you may see above, lasagna-pull using a pattern which mimics your data
- to match it, a logic variable marks the piece of information we are interested,
- it is easy to write and easy to understand.
-```clojure
-(let [[_ {:syms [?global ?dev ?test]}] (pull/run-query pattern data)]
-     (concat ?global ?dev ?test))
+((qfn '{:deps {:paths   ?global
+               :aliases {:dev  {:extra-paths ?dev}
+                         :test {:extra-paths ?test}}}}
+      (concat ?global ?dev ?test))
+ data)
 (comment
   ;=>
   ("src" "dev" "test")
   )
 ```
- `pull/match` takes a pattern and match it to data, returns a pair, and
- the second item of the pair is a map, contains all logical variable (a.k.a lvar)
- bindings.
-### Select subset of your data
+ `pull/qfn` returns a query function, which matches data using a Lasagna pattern.
+ A lasagna pattern mimics your data, you specify the pieces of information
+ that you interested by using logic variables, they are just symbols starting with
+ a `?`.
+
+ > :bulb: `qfn` scans your pattern, binding them then you can use them
+ > directly in the function's body.
+
  Another frequent situation is selecting subset of data, we could use 
  `select-keys` to shrink a map, and `map` it over a sequence of maps.
- Lasagna-pull provide this with nothing to add:
+ Lasagna-pull provide this with an implicit binding `&?`:
 ```clojure
-(-> (pull/run-query pattern data) first)
+((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?) data)
 (comment
   ;=>
-  {:deps {:paths ["src"], :aliases {:test {:extra-paths ["test"]}, :dev {:extra-paths ["dev"]}}}}
+  {:deps {:paths ["src"], :aliases {:dev {:extra-paths ["dev"]}}}}
   )
 ```
- Just check the first item of the matching result, it only contains
- information we asked, retaining the original data shape.
+ The unnamed binding `?` in the pattern is a placeholder, it will appear
+ in `&?`.
 ### Sequence of maps
  It is very common that our data include maps in a sequence, like this:
 ```clojure
@@ -99,62 +94,46 @@
 ```
  The pattern to select inside the sequence of maps just look like the data itself:
 ```clojure
-(pull/run-query '{:persons [{:name ?}]} person&fruits)
+((qfn '{:persons [{:name ?}]} &?) person&fruits)
 (comment
   ;=>
-  [{:persons [{:name "Alan"} {:name "Susan"}]} {}]
-  )
-```
- Logical variable `?` is unnamed, it means it will included in the query result,
- but not in the resolved binding map. 
-```clojure
-(-> (pull/run-query '{:persons [{:name ? :age ?} ?names]} person&fruits) (pull/lvar-val '?names))
-(comment
-  ;=>
-  [{:age 20, :name "Alan"} {:age 12, :name "Susan"}]
+  {:persons [{:name "Alan"} {:name "Susan"}]}
   )
 ```
  by append a logical variable in the sequence marking vector, we can capture
  a sequence of map.
+```clojure
+((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits)
+(comment
+  ;=>
+  ("Alan" "Susan")
+  )
+```
 ### Filter a value
+
  Sometimes, we need filtering a map on some keys. It is very intuitive to specific
  it in your pattern, let's find alan's age:
 ```clojure
-(-> (pull/run-query '{:persons [{:name "Alan" :age ?age}]} person&fruits) (pull/lvar-val '?age))
+((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits)
 ```
 ### Using same named lvar multiple times to join
+
  If a named lvar bound for more than one time, its value has to be the same, otherwise
  all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
  in-stock value:
 ```clojure
-(-> (pull/run-query '{:persons [{:name "Alan"}]
-                      :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
-                      :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
-                    person&fruits)
-    (pull/lvar-val '?in-stock))
+((qfn '{:persons [{:name "Alan"}]
+        :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
+        :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
+      ?in-stock)
+ person&fruits)
 (comment
   ;=>
   10
   )
 ```
-> There is a macro for you to define a *query function* just like `fn`, but takes
-> a pattern to match data. 
-```clojure
-(def find-add (pull/qn '{:x ?x :y ?y} (+ ?x ?y)))
-(comment
-  ;=>
-  #'introduction/find-add
-  )
-```
- This function accept data and do the rest just like `fn`
-```clojure
-(find-add {:x 5 :y 15})
-(comment
-  ;=>
-  20
-  )
-```
- ## Query Options
+ ## Pattern Options
+
  In addition to basic query, Lasagna-pull support pattern options, it is a decorator
  on the key part of a pattern, let you fine tune the query.
  An option is a pair, a keyword followed by its arguments.
@@ -168,7 +147,7 @@
  The easiest option is `:not-found`, it provides a default value if a value is not
  found.
 ```clojure
-(-> (pull/run-query '{(:a :not-found 0) ?a} {:b 3}) (pull/lvar-val '?a))
+((qfn '{(:a :not-found 0) ?a} ?a) {:b 3})
 (comment
   ;=>
   0
@@ -179,39 +158,41 @@
  `:when` option has a predict function as it argument, a match only succeed when this
  predict fulfilled by the value.
 ```clojure
-(def q (pull/query {(list :a :when odd?) '?a}))
+(def q (qfn {(list :a :when odd?) '?a} ?a))
 (comment
   ;=>
   #'introduction/q
-  )(-> (q {:a 3 :b 3}) (pull/lvar-val '?a))
+  )(q {:a 3 :b 3})
 (comment
   ;=>
   3
   )
 ```
- This will failed to match:
+ This will failed to match, e.g. returns nil:
 ```clojure
-(-> (q {:a 2 :b 3}) (pull/lvar-val '?a))
+(q {:a 2 :b 3})
 ```
- Note that the basic filter can also be thought as a `:when` option.
+ > Note that the basic filter can also be thought as a `:when` option.
+
  You can combine options together, they will be applied by their order:
 ```clojure
-(pull/run-query {(list :a :when even? :not-found 0) '?} {:a -1 :b 3})
+((qfn {(list :a :when even? :not-found 0) '?} &?) {:a -1 :b 3})
 (comment
   ;=>
-  [{:a 0} {}]
+  {:a 0}
   )
 ```
- ### Options requires values be a specific type
+ ### Pattern options requires values be a specific type
+
  #### `:seq` option
  
  If you are about to match a big sequence, you might want to do pagination. It is essential
  if you values are lazy.
 ```clojure
-(-> (pull/run-query '{(:a :seq [5 5]) ?} {:a (range 1000)}))
+((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)})
 (comment
   ;=>
-  [{:a (5 6 7 8 9)} {}]
+  {:a (5 6 7 8 9)}
   )
 ```
  The design of putting options in the key part of the patterns, enable us
@@ -221,10 +202,10 @@
 (comment
   ;=>
   #'introduction/range-data
-  )(-> (pull/run-query '{(:a :seq [5 5]) [{:b ?} ?b]} range-data) (pull/lvar-val '?b))
+  )((qfn '{(:a :seq [5 5]) [{:b ?} ?bs]} (map :b ?bs)) range-data)
 (comment
   ;=>
-  [{:b 5} {:b 6} {:b 7} {:b 8} {:b 9}]
+  (5 6 7 8 9)
   )
 ```
  #### `:with` and `:batch` options
@@ -236,7 +217,7 @@
 (comment
   ;=>
   #'introduction/square
-  )(-> (pull/run-query '{(:a :with [5]) ?a} {:a square}) (pull/lvar-val '?a))
+  )((qfn '{(:a :with [5]) ?a} ?a) {:a square})
 (comment
   ;=>
   25
@@ -244,9 +225,8 @@
 ```
  And `:batch` will apply many times on it, as if it is a sequence:
 ```clojure
-(-> (pull/run-query {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a}
-                    {:a square})
-    (pull/lvar-val '?a))
+((qfn {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a} ?a)
+ {:a square})
 (comment
   ;=>
   (25 36 49 64 81)
@@ -260,8 +240,8 @@
 (comment
   ;=>
   #'introduction/a
-  )(-> (pull/run-query {(list :a :with [5]) '?a} {:a (fn [x] (swap! a + x))})
-    (pull/lvar-val '?a))
+  )((qfn {(list :a :with [5]) '?a} ?a)
+ {:a (fn [x] (swap! a + x))})
 (comment
   ;=>
   5
