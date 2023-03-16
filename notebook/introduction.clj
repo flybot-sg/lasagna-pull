@@ -27,11 +27,11 @@
               :extra-deps
               {'lambdaisland/kaocha {:mvn/version "1.80.1274"}},
               :main-opts ["-m" "kaocha.runner"]}}}})
-
-;; In `clojure.core`, we have `get`, `get-in` to extract information 
-;; from a map and we are very familiar with them. However, if we have multiple 
-;; pieces of information need and they are stored in different location of the map, 
-;; things are starting getting tricky. 
+;;
+;; In `clojure.core `we have `get `and `get-in `to extract information from a
+;; map and we are very familiar with them. However, if we have multiple pieces of
+;; information needs to be extracted from different location of the map, things
+;; are starting getting tricky.
 ;;
 
 (let [global-path     (get-in data [:deps :paths])
@@ -69,7 +69,8 @@
 ;; in `&?`.
 
 ;;### Sequence of maps
-;; It is very common that our data include maps in a sequence, like this:
+;;
+;; The pattern to select inside the sequence of the maps just look like the data itself:
 
 (def person&fruits {:persons [{:name "Alan", :age 20, :sex :male}
                               {:name "Susan", :age 12, :sex :female}]
@@ -81,24 +82,24 @@
 
 ((qfn '{:persons [{:name ?}]} &?) person&fruits)
 
-;; by append a logical variable in the sequence marking vector, we can capture
+;; by appending a logical variable in the sequence marking vector, we can capture
 ;; a sequence of map.
 
 ((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits)
 
 ;;### Filter a value
 ;;
-;; Sometimes, we need filtering a map on some keys. It is very intuitive to specific
-;; it in your pattern, let's find Alan's age:
+;;  Sometimes, we need filtering a map on some keys. It feels very intuitive to specific
+;;  it in your pattern, let's find Alan's age:
 
 ((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits)
 
 ;;
 ;;### Using same named lvar multiple times to join
 ;;
-;; If a named lvar bound for more than one time, its value has to be the same, otherwise
-;; all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
-;; in-stock value:
+;;  If a named lvar bound more than one time, its value has to be the same, otherwise
+;;  all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
+;;  in-stock value:
 
 ((qfn '{:persons [{:name "Alan"}]
         :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
@@ -144,8 +145,8 @@
 ;;
 ;; #### `:seq` option
 ;; 
-;; If you are about to match a big sequence, you might want to do pagination. It is essential
-;; if you values are lazy.
+;; If you are about to match a big sequence, you might want to do pagination. 
+;; It is essential if your values are lazy (sequential).
 
 ((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)})
 
@@ -167,9 +168,10 @@
 ((qfn {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a} ?a)
  {:a square})
 
-;; These options not just for conviniece, if the embeded functions invoked by 
-;; a query has side effects, these options could do 
-;; [GraphQL's mutation](https://graphql.org/learn/queries/#mutations).
+;;  These options not just for convinience, if the embeded functions invoked by 
+;;  a query has side effects, these options could do 
+;;  [GraphQL's mutation](https://graphql.org/learn/queries/#mutations).
+
 (def a (atom 0))
 ((qfn {(list :a :with [5]) '?a} ?a)
  {:a (fn [x] (swap! a + x))})
@@ -177,32 +179,71 @@
 ;; And the atom has been changed:
 @a
 
-;; ## Malli schema support
-;;
-;; Lasagna-pull has optional for support [malli](https://github.com/metosin/malli) schemas.
-;; In Clojure, by put malli in your dependencies, it automatically check your data
-;; pattern when you make queries to make sure the syntax is correct.
-;;
-;; Your query patterns not only follow the rules of pattern, it also should conform 
-;; to your data schema. It is especially important when you want to expose your data to
-;; the external world.
-;; `with-data-schema` macro let you include your customized data schema (applies to your data),
-;; then in the body, Lasagna-pull do a deeper check for the pattern. Try to find if 
-;; the query pattern conforms to the meaning of data schema.
+;;  ## Malli schema support
+
+;;  Lasagna-pull has optional for support [malli](https://github.com/metosin/malli) schemas.
+;;  In Clojure, by put malli in your dependencies, it automatically checks your data
+;;  pattern when you make queries to make sure the syntax is correct.
+
+;;  Your query patterns not only follow the rules of pattern, it also should conform 
+;;  to your data schema. It is especially important when you want to expose your data to
+;;  the external world.
+;;  `with-data-schema` macro let you include your customized data schema (applies to your data),
+;;  then in the body, Lasagna-pull do a deeper check for the pattern. Try to find if 
+;;  the query pattern conforms to the meaning of data schema (in terms of each value
+;;  and your data structrue).
 
 (def my-data-schema [:map [:a :int] [:b :keyword]])
 (pull/with-data-schema my-data-schema
   (qfn '{:c ?c} ?c))
 
-;; The above throws an exception! Because once you specified a data schema, you only
-;; allow users to query values documented in the schema (i.e. closeness of map). 
-;; Since `:c` is not included in the schema, querying `:c` is invalid.
+;;  The above throws an exception! Because once you specified a data schema, you only
+;;  allow users to query values documented in the schema (i.e. closeness of map). 
+;;  Since `:c` is not included in the schema, querying `:c` is invalid.
 ;;
 ;; Lasagna-pull try to find all schema problems:
 (pull/with-data-schema my-data-schema
   (qfn '{(:a :not-found "3") ?} &?))
-;; Also triggers an exception, because `:a` is an `:int` as in the data schema,
-;; while you provide a `:not-found` pattern option value which is not an integer.
+;;
+;;  The above code also triggers an exception, because `:a` is an `:int` as in the data schema,
+;;  while you provide a `:not-found` pattern option value which is not an integer.
+;;
+;; ## Real world usage and some history
+;;  
+;;  In Flybot, we use [fun-map](https://github.com/robertluo/fun-map) extensively.
+;;  In a typical server backend, we put everything mutable into a single map called
+;;  `system`, including atoms, databases even web server itself. The fun-map library
+;;  manages the lifecycles of these components, injects dependencies among them.
+
+;;  Then we add database queries into `system`, they relies on databases, so the 
+;;  database value (we use Datomic) or connection (if using SQL databases) will be
+;;  injected by fun-maps `fnk`, and while developing, we can easyly replace the
+;;  db connection by mocked values.
+
+;;  Most of the queries not just require database itself, also input from user requests,
+;;  so in the ring handler (of course, in `system`), we `merge` http request to 
+;;  `system`, this merged version then will be used to be the source of all possible
+;;  data.
+
+;;  The next problem is how to let user to fetch, we are not satisfied with conventional
+;;  REST style, GraphQL is good, but it adds too much unneccesary middle layers in my
+;;  opinion, for example, we need to write many resolvers in order to glue it to backend
+;;  data. 
+
+;;  The first attempt made was [juxt pull](https://github.com/juxt/pull),
+;;  I contributed to the 0.2 version, used it in some projects, allowing users to 
+;;  construct a data pattern (basic idea and syntax is similar to
+;;  [EQL](https://github.com/edn-query-language/eql)) to pull data from the request
+;;  enriched `system`.
+
+;;  However, the syntax of pull does not go very well with deep and complex data
+;;  structures (because database information also translated into fields), and it 
+;;  just returns a trimmed version of the original map, users often need to walk the
+;;  returned value again to find out the pieces of information by themselves.
+
+;;  Lasagna-pull introduces a new designed query pattern in order to address
+;;  these problems.
+
 ;;
 ;; ## About this README
 ;;
