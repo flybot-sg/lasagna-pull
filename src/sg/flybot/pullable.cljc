@@ -16,8 +16,9 @@
 
 (defn query
   "Returns a query function from `pattern`. A query function can be used to extract information
-   from data. Query function takes `data` as its single argument, returns a vector of resulting
-   data and output variable bindings in a map.
+   from data. Query function takes `data` as its single argument, if data matches the pattern,
+   returns a map of resulting data and output variable bindings, the whole matching result is in
+   `'&?` binding and other named logical variable bindings.
    
    A pattern is a clojure data structure, in most cases, a pattern looks like the data
    which it queries, for example, to query data `{:a {:b {:c 5}} :d {:e 2}}` to extract
@@ -91,13 +92,15 @@
    ((f pattern) data)))
 
 (defmacro qfn 
-  "Define an anonymous query function (a.k.a qn)"
+  "returns an anonymous query function on `pattern`, all logical variables in the
+   pattern can be used in `body`. The whole query result stored in `&?`.
+   See `query`'s documentation for syntax of the pattern." 
   [pattern & body]
   (let [syms (-> (util/named-lvars-in-pattern pattern) vec)]
-  `(let [q# (query ~pattern)]
-     (fn [data#]
-       (let [{:syms ~syms} (q# data#)]
-         ~@body)))))
+    `(let [q# (query ~pattern)]
+       (fn [data#]
+         (let [{:syms ~syms} (q# data#)]
+           ~@body)))))
 
 ^:rct/test
 (comment

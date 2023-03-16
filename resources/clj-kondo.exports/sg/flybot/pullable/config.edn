@@ -1,1 +1,0 @@
-{:lint-as {sg.flybot.pullable/qn clojure.core/fn}}

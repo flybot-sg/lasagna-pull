@@ -1,7 +1,7 @@
 ; Copyright 2022, Flybot Pte. Ltd.
 ; Apache License 2.0, http://www.apache.org/licenses/
 
-(ns sg.flybot.pullable.schema
+(ns ^:no-doc sg.flybot.pullable.schema
   "Pattern validation with Malli schema."
   (:require [malli.core :as m]
             [malli.util :as mu]))
