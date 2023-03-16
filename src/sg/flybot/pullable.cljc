@@ -95,6 +95,7 @@
   "returns an anonymous query function on `pattern`, all logical variables in the
    pattern can be used in `body`. The whole query result stored in `&?`.
    See `query`'s documentation for syntax of the pattern." 
+  {:style/indent 1}
   [pattern & body]
   (let [syms (-> (util/named-lvars-in-pattern pattern) vec)]
     `(let [q# (query ~pattern)]
