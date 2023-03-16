@@ -1,7 +1,7 @@
 ; Copyright 2022, Flybot Pte. Ltd.
 ; Apache License 2.0, http://www.apache.org/licenses/
 
-(ns sg.flybot.pullable.core.option
+(ns ^:no-doc sg.flybot.pullable.core.option
   "support for decorate query options"
   (:require [sg.flybot.pullable.util :as u :refer [data-error]]))
 

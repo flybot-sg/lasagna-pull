@@ -5,18 +5,20 @@
   "Pull from data structure by using pattern.
    
    Pattern is a DSL in clojure data structure, specify how to extract
-   information from data."
-  #_{:clj-kondo/ignore [:unused-namespace]}
+   information from data." 
   (:require [sg.flybot.pullable.core :as core]
-            [sg.flybot.pullable.pattern :as ptn]
+            [sg.flybot.pullable.pattern :as ptn] 
             [sg.flybot.pullable.util :as util]))
 
 ;;## APIs
 
+(def ^:dynamic *data-schema* nil)
+
 (defn query
   "Returns a query function from `pattern`. A query function can be used to extract information
-   from data. Query function takes `data` as its single argument, returns a vector of resulting
-   data and output variable bindings in a map.
+   from data. Query function takes `data` as its single argument, if data matches the pattern,
+   returns a map of resulting data and output variable bindings, the whole matching result is in
+   `'&?` binding and other named logical variable bindings.
    
    A pattern is a clojure data structure, in most cases, a pattern looks like the data
    which it queries, for example, to query data `{:a {:b {:c 5}} :d {:e 2}}` to extract
@@ -48,11 +50,24 @@
   ([pattern]
    (query pattern nil))
   ([pattern context]
+   #?(:clj
+      #_{:clj-kondo/ignore [:unresolved-symbol]}
+      (util/optional-require
+       [sg.flybot.pullable.schema :as schema]
+       #_{:clj-kondo/ignore [:unresolved-namespace]}
+       (schema/check-pattern! *data-schema* pattern)
+       nil))
    (fn [data]
      (-> context
          core/query-maker
          (ptn/->query pattern ptn/filter-maker)
          (core/run-bind data)))))
+
+^:rct/test
+(comment
+  (query {:a 3}) ;=>> fn?
+  (query 3) ;throws=>> #:error{:class clojure.lang.ExceptionInfo}
+  )
 
 (defn context-of
   "returns a query context of function `modifier` and function `finalizer`(default `clojure.core/identity`),
@@ -76,46 +91,41 @@
   ([f pattern data]
    ((f pattern) data)))
 
-(defn lvar-val
-  "returns the value of `lvar` in a `query-result`"
-  [query-result lvar]
-  (-> query-result second (get lvar)))
-
-(defmacro qn 
-  "Define an anonymous query function (a.k.a qn)"
-  [args pattern & body]
-  (assert (every? #(.startsWith (name %) "?") args) "Every arguments must starts with ?")
-  `(let [q# (query ~pattern)]
-     (fn [data#]
-       (let [[~'_ {:syms ~args}] (q# data#)]
-         ~@body))))
+(defmacro qfn 
+  "returns an anonymous query function on `pattern`, all logical variables in the
+   pattern can be used in `body`. The whole query result stored in `&?`.
+   See `query`'s documentation for syntax of the pattern." 
+  {:style/indent 1}
+  [pattern & body]
+  (let [syms (-> (util/named-lvars-in-pattern pattern) vec)]
+    `(let [q# (query ~pattern)]
+       (fn [data#]
+         (let [{:syms ~syms} (q# data#)]
+           ~@body)))))
 
 ^:rct/test
 (comment
+  ;;testing context
   (defn my-ctx []
     (let [shared (transient [])]
       (context-of
        (fn [_ [k v]] (when (number? v) (conj! shared v)) [k v])
        #(into % {:shared (persistent! shared)}))))
-  ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> [{:a 3, :b 4} {:shared [4 4 3], ?a 4}]
-  ;;`run-query` is a convinient function over `query`
-  (run-query '{:a ?} {:a 1 :b 2}) ;=> [{:a 1} {}] 
-  ;;`lvar-var` returns a lvar's value from query result 
-  (-> (run-query '{:a ?a} {:a 1 :b 2}) (lvar-val '?a)) ;=> 1
-  (macroexpand-1 '(qn [?a ?b] {:a ?a :b ?b} (+ ?a ?b)))
-  ((qn [?a ?b] '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2})
-  )
+  ((query '{:a ? :b ?a} (my-ctx)) {:a 3 :b 4}) ;=> {&? {:a 3, :b 4} :shared [4 4 3], ?a 4}
   
+  (macroexpand-1 '(qfn {:a ?a :b ?b} (+ ?a ?b)))
+  ((qfn '{:a ?a :b ?b} (+ ?a ?b)) {:a 1 :b 2}) ;=> 3
+  ) 
 
 #?(:clj
-   #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-   (defn query-of
-     "returns an instrumented version of `pull/query` for `data-schema`" 
-     ([data-schema]
-      #_{:clj-kondo/ignore [:unresolved-symbol]}
-      (util/optional-require 
-       [sg.flybot.pullable.schema :as schema]
-       #_{:clj-kondo/ignore [:unresolved-namespace]}
-       (schema/instrument! data-schema query)
-       (throw (ClassNotFoundException. "Need metosin/malli library in the classpath"))))))
-   
+   (defmacro with-data-schema 
+     [schema & body]
+     `(with-bindings {~(var *data-schema*) ~schema}
+        ~@body)))
+
+^:rct/test
+(comment
+  (macroexpand-1 '(with-schema nil nil))
+  (with-data-schema [:map [:a :int]] (qfn '{:a 3})) ;=>> fn?
+  (with-data-schema [:map [:a :int]] (qfn '{:a "3"})) ;throws=>> some?
+  )

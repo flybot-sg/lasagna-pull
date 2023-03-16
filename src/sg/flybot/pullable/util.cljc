@@ -2,7 +2,8 @@
 ; Apache License 2.0, http://www.apache.org/licenses/
 
 (ns sg.flybot.pullable.util
-  "misc utility functions")
+  "misc utility functions" 
+  (:require [clojure.walk :as walk]))
 
 (defrecord DataError [data query-id reason])
 
@@ -25,6 +26,31 @@
 (comment
   (data-error {} :k) ;=>> {:query-id :k}
   (error? (data-error {} :k)) ;=> true
+  )
+
+(defn named-lvar?
+  "predict if `x` is a named logical value"
+  [x]
+  (and (symbol? x) (re-matches #"\?\S+" (name x))))
+
+(defn named-lvars-in-pattern
+  "returns named lvars in `pattern`"
+  [pattern]
+  (let [rslt (transient #{'&?})
+        collector (fn [x] (when (named-lvar? x) (conj! rslt x)) x)]
+    (walk/postwalk collector pattern)
+    (persistent! rslt)))
+
+^:rct/test
+(comment
+  (named-lvars-in-pattern '{:a ? :b ?b :c ?c}) ;=> #{?b ?c &?}
+  )
+
+
+^:rct/test
+(comment
+  (named-lvar? 3) ;=> false
+  (named-lvar? '?a) ;=>> some?
   )
 
 ;; To avoid hard dependency of malli.
