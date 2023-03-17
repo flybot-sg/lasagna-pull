@@ -1,5 +1,5 @@
 
-(ns introduction 
+(ns introduction
   (:require [sg.flybot.pullable :as pull :refer [qfn]]))
 
 ;;# Lasagna-pull, query data from deep data structure
@@ -12,7 +12,7 @@
 
 ;; Let's see some data copied from deps.edn:
 
-(def data {:deps 
+(def data {:deps
            {:paths ["src"],
             :deps {},
             :aliases
@@ -20,8 +20,7 @@
              {:extra-paths ["dev"],
               :extra-deps
               {'metosin/malli {:mvn/version "0.10.2"},
-               'com.bhauman/figwheel-main {:mvn/version "0.2.18"},
-               }},
+               'com.bhauman/figwheel-main {:mvn/version "0.2.18"}}},
              :test
              {:extra-paths ["test"],
               :extra-deps
@@ -63,7 +62,8 @@
 ;; `select-keys` to shrink a map, and `map` it over a sequence of maps.
 ;; Lasagna-pull provide this with an implicit binding `&?`:
 
-((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?) data)
+((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?)
+ data)
 
 ;; The unnamed binding `?` in the pattern is a placeholder, it will appear
 ;; in `&?`.
@@ -80,19 +80,25 @@
 
 ;; The pattern to select inside the sequence of maps just look like the data itself:
 
-((qfn '{:persons [{:name ?}]} &?) person&fruits)
+((qfn '{:persons [{:name ?}]} &?)
+ person&fruits)
 
 ;; by appending a logical variable in the sequence marking vector, we can capture
 ;; a sequence of map.
 
-((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits)
+((qfn '{:persons [{:name ?} ?names]} (map :name ?names))
+ person&fruits)
 
 ;;### Filter a value
 ;;
 ;;  Sometimes, we need filtering a map on some keys. It feels very intuitive to specific
 ;;  it in your pattern, let's find Alan's age:
 
-((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits)
+((qfn '{:persons [{:name "Alan" :age ?age}]} ?age)
+ person&fruits)
+
+;; The success of above query is due to we filtered on `:name`, and there are 
+;; only one item in `:persons` has the value of "Alan."
 
 ;;
 ;;### Using same named lvar multiple times to join
@@ -101,12 +107,13 @@
 ;;  all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
 ;;  in-stock value:
 
-((qfn '{:persons [{:name "Alan"}]
-        :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
-        :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
-      ?in-stock)
- person&fruits)
+(def q2 (qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x]))
+(q2 {:a 1 :b {:c 5 :d 1}})
+(q2 {:a 1 :b {:c 5 :d 2}})
 
+;; The second query above failed because `?x` bound twice and they do not agree with
+;; each other.
+;;
 ;; ## Pattern Options
 ;;
 ;; In addition to basic query, Lasagna-pull support pattern options, it is a decorator
@@ -122,7 +129,8 @@
 ;; The easiest option is `:not-found`, it provides a default value if a value is not
 ;; found.
 
-((qfn '{(:a :not-found 0) ?a} ?a) {:b 3})
+((qfn '{(:a :not-found 0) ?a} ?a)
+ {:b 3})
 
 ;; #### `:when` option
 ;;
@@ -139,7 +147,8 @@
 ;; > Note that the basic filter can also be thought as a `:when` option.
 ;;
 ;; You can combine options together, they will be applied by their order:
-((qfn {(list :a :when even? :not-found 0) '?} &?) {:a -1 :b 3})
+((qfn {(list :a :when even? :not-found 0) '?} &?)
+ {:a -1 :b 3})
 
 ;; ### Pattern options requires values be a specific type
 ;;
@@ -148,13 +157,15 @@
 ;; If you are about to match a big sequence, you might want to do pagination. 
 ;; It is essential if your values are lazy (sequential).
 
-((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)})
+((qfn '{(:a :seq [5 10]) ?} &?)
+ {:a (range 1000)})
 
 ;; The design of putting options in the key part of the patterns, enable us
 ;; to do nested query.
 
 (def range-data {:a (map (fn [i] {:b i}) (range 100))})
-((qfn '{(:a :seq [5 5]) [{:b ?} ?bs]} (map :b ?bs)) range-data)
+((qfn '{(:a :seq [90 5]) [{:b ?} ?bs]} (map :b ?bs))
+ range-data)
 
 ;; #### `:with` and `:batch` options
 ;;
@@ -162,10 +173,11 @@
 ;; can apply arguments to it, `:with` enable you to do it:
 
 (defn square [x] (* x x))
-((qfn '{(:a :with [5]) ?a} ?a) {:a square})
+((qfn '{(:a :with [5]) ?a} ?a)
+ {:a square})
 
 ;; And `:batch` will apply many times on it, as if it is a sequence:
-((qfn {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a} ?a)
+((qfn {(list :a :batch (mapv vector (range 100)) :seq [40 5]) '?a} ?a)
  {:a square})
 
 ;;  These options not just for convinience, if the embeded functions invoked by 
@@ -181,50 +193,55 @@
 
 ;;  ## Malli schema support
 
-;;  Lasagna-pull has optional for support [malli](https://github.com/metosin/malli) schemas.
+;;  Lasagna-pull has optional support for [malli](https://github.com/metosin/malli) schemas.
 ;;  In Clojure, by put malli in your dependencies, it automatically checks your data
 ;;  pattern when you make queries to make sure the syntax is correct.
-
+;;
 ;;  Your query patterns not only follow the rules of pattern, it also should conform 
 ;;  to your data schema. It is especially important when you want to expose your data to
 ;;  the external world.
+;;
 ;;  `with-data-schema` macro let you include your customized data schema (applies to your data),
 ;;  then in the body, Lasagna-pull do a deeper check for the pattern. Try to find if 
 ;;  the query pattern conforms to the meaning of data schema (in terms of each value
 ;;  and your data structrue).
 
+(defmacro try! [& body] `(try ~@body (catch Throwable e# #:error{:msg (ex-message e#)})))
+
 (def my-data-schema [:map [:a :int] [:b :keyword]])
-(pull/with-data-schema my-data-schema
-  (qfn '{:c ?c} ?c))
+(try!
+ (pull/with-data-schema my-data-schema
+   (qfn '{:c ?c} ?c)))
 
 ;;  The above throws an exception! Because once you specified a data schema, you only
 ;;  allow users to query values documented in the schema (i.e. closeness of map). 
 ;;  Since `:c` is not included in the schema, querying `:c` is invalid.
 ;;
 ;; Lasagna-pull try to find all schema problems:
-(pull/with-data-schema my-data-schema
-  (qfn '{(:a :not-found "3") ?} &?))
+(try!
+ (pull/with-data-schema my-data-schema
+   (qfn '{(:a :not-found "3") ?} &?)))
 ;;
 ;;  The above code also triggers an exception, because `:a` is an `:int` as in the data schema,
 ;;  while you provide a `:not-found` pattern option value which is not an integer.
 ;;
-;; ## Real world usage and some history
+;;  ## Real world usage and some history
 ;;  
 ;;  In Flybot, we use [fun-map](https://github.com/robertluo/fun-map) extensively.
 ;;  In a typical server backend, we put everything mutable into a single map called
 ;;  `system`, including atoms, databases even web server itself. The fun-map library
 ;;  manages the lifecycles of these components, injects dependencies among them.
-
+;;
 ;;  Then we add database queries into `system`, they relies on databases, so the 
 ;;  database value (we use Datomic) or connection (if using SQL databases) will be
 ;;  injected by fun-maps `fnk`, and while developing, we can easyly replace the
 ;;  db connection by mocked values.
-
+;;
 ;;  Most of the queries not just require database itself, also input from user requests,
 ;;  so in the ring handler (of course, in `system`), we `merge` http request to 
 ;;  `system`, this merged version then will be used to be the source of all possible
 ;;  data.
-
+;;
 ;;  The next problem is how to let user to fetch, we are not satisfied with conventional
 ;;  REST style, GraphQL is good, but it adds too much unneccesary middle layers in my
 ;;  opinion, for example, we need to write many resolvers in order to glue it to backend
@@ -235,15 +252,19 @@
 ;;  construct a data pattern (basic idea and syntax is similar to
 ;;  [EQL](https://github.com/edn-query-language/eql)) to pull data from the request
 ;;  enriched `system`.
-
+;;
 ;;  However, the syntax of pull does not go very well with deep and complex data
 ;;  structures (because database information also translated into fields), and it 
 ;;  just returns a trimmed version of the original map, users often need to walk the
 ;;  returned value again to find out the pieces of information by themselves.
-
+;;
 ;;  Lasagna-pull introduces a new designed query pattern in order to address
 ;;  these problems.
-
+;;
+;; ## Development
+;;
+;; - Run `clojure -T:build ci`.
+;; - This project's uses a lot of [rct tests](https://github.com/robertluo/rich-comment-tests).
 ;;
 ;; ## About this README
 ;;

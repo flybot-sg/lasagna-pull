@@ -202,19 +202,19 @@
   )
 
 (defn context-of
-  [modifier finalizer]
-  (reify QueryContext
-    (-wrap-query
-      [_ q args]
-      (reify DataQuery
-        (-id [_] (-id q))
-        (-default-acceptor [_] (-default-acceptor q))
-        (-run [_ data acceptor]
-          (let [[k v] (->> (-run q data (vector-acceptor)) (modifier args))]
-            (-accept acceptor k v)))))
-    (-finalize
-      [_ m]
-      (finalizer m))))
+  ([modifier finalizer]
+   (reify QueryContext
+     (-wrap-query
+       [_ q args]
+       (reify DataQuery
+         (-id [_] (-id q))
+         (-default-acceptor [_] (-default-acceptor q))
+         (-run [_ data acceptor]
+           (let [[k v] (->> (-run q data (vector-acceptor)) (modifier args))]
+             (-accept acceptor k v)))))
+     (-finalize
+       [_ m]
+       (finalizer m)))))
 
 (defn named-query-factory
   "returns a new NamedQueryFactory
@@ -222,21 +222,20 @@
   ([]
    (named-query-factory (transient {})))
   ([symbol-table]
-   (context-of
-    (fn [[sym] pair]
-      (if (some? sym)
-        (let [[k v]    pair
-              old-v    (get symbol-table sym ::not-found)
-              set-val! #(get (assoc! symbol-table sym %) sym)
-              rslt
-              (condp = old-v
-                ::not-found (set-val! v)
-                v           v
-                ::invalid   ::invalid
-                (set-val! ::invalid))]
-          [(when (not= rslt ::invalid) k) rslt])
-        pair))
-    #(into % (filter (fn [[_ v]] (not= ::invalid v))) (persistent! symbol-table)))))
+   (let [set-val! (fn [sym v] (get (assoc! symbol-table sym v) sym))]
+     (context-of
+      (fn [[sym] [k v :as pair]]
+        (if (and (some? sym) (some? k))
+          (let [old-v    (get symbol-table sym ::not-found)
+                rslt
+                (condp = old-v
+                  v           v
+                  ::not-found (set-val! sym v)
+                  ::invalid   ::invalid
+                  (set-val! sym ::invalid))]
+            [(when (not= rslt ::invalid) k) rslt])
+          pair))
+      #(into % (filter (fn [[_ v]] (not= ::invalid v))) (persistent! symbol-table))))))
 
 (defn- mock-query [k v]
   (reify DataQuery
@@ -246,14 +245,17 @@
 
 ^:rct/test
 (comment
-  (defn try-named [init]
+  (defn try-named [init k v]
     (let [fac (named-query-factory (transient init))]
-      (-> (-wrap-query fac (mock-query :foo "bar") ['?a]) (run-bind {}))
+      (-> (-wrap-query fac (mock-query k v) ['?a]) (run-bind {}))
       (-finalize fac {})))
-  (try-named {})  ;=> {?a "bar"}
-  (try-named {'?a "none"}) ;=> {}
-  (try-named {'?a "bar"}) ;=> {?a "bar"}
-  (try-named {'?a ::invalid}) ;=> {}
+  (try-named {} :foo "bar")  ;=> {?a "bar"}
+  (try-named {'?a "none"} :foo "bar") ;=> {}
+  (try-named {'?a "bar"} :foo "bar") ;=> {?a "bar"}
+  (try-named {'?a ::invalid} :foo "bar") ;=> {}
+  (try-named {'?a ::invalid} :foo "bar") ;=> {} 
+  ;;failed binding does not affect existing bindings
+  (try-named {'?a "bar"} nil "bar") ;=> {?a "bar"}
   )
 
 ;;### post-process-query

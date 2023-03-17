@@ -1,5 +1,5 @@
 ```clojure
-(ns introduction 
+(ns introduction
   (:require [sg.flybot.pullable :as pull :refer [qfn]])) ;=> nil
 ```
 # Lasagna-pull, query data from deep data structure
@@ -10,7 +10,7 @@
 ## Problem
  Let's see some data copied from deps.edn:
 ```clojure
-(def data {:deps 
+(def data {:deps
            {:paths ["src"],
             :deps {},
             :aliases
@@ -18,8 +18,7 @@
              {:extra-paths ["dev"],
               :extra-deps
               {'metosin/malli {:mvn/version "0.10.2"},
-               'com.bhauman/figwheel-main {:mvn/version "0.2.18"},
-               }},
+               'com.bhauman/figwheel-main {:mvn/version "0.2.18"}}},
              :test
              {:extra-paths ["test"],
               :extra-deps
@@ -60,7 +59,8 @@
  `select-keys` to shrink a map, and `map` it over a sequence of maps.
  Lasagna-pull provide this with an implicit binding `&?`:
 ```clojure
-((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?) data) ;=> {:deps {:paths ["src"], :aliases {:dev {:extra-paths ["dev"]}}}}
+((qfn '{:deps {:paths ? :aliases {:dev {:extra-paths ?}}}} &?)
+ data) ;=> {:deps {:paths ["src"], :aliases {:dev {:extra-paths ["dev"]}}}}
 ```
  The unnamed binding `?` in the pattern is a placeholder, it will appear
  in `&?`.
@@ -76,20 +76,25 @@
 ```
  The pattern to select inside the sequence of maps just look like the data itself:
 ```clojure
-((qfn '{:persons [{:name ?}]} &?) person&fruits) ;=> {:persons [{:name "Alan"} {:name "Susan"}]}
+((qfn '{:persons [{:name ?}]} &?)
+ person&fruits) ;=> {:persons [{:name "Alan"} {:name "Susan"}]}
 ```
  by appending a logical variable in the sequence marking vector, we can capture
  a sequence of map.
 ```clojure
-((qfn '{:persons [{:name ?} ?names]} (map :name ?names)) person&fruits) ;=> ("Alan" "Susan")
+((qfn '{:persons [{:name ?} ?names]} (map :name ?names))
+ person&fruits) ;=> ("Alan" "Susan")
 ```
 ### Filter a value
 
   Sometimes, we need filtering a map on some keys. It feels very intuitive to specific
   it in your pattern, let's find Alan's age:
 ```clojure
-((qfn '{:persons [{:name "Alan" :age ?age}]} ?age) person&fruits) ;=> nil
+((qfn '{:persons [{:name "Alan" :age ?age}]} ?age)
+ person&fruits) ;=> nil
 ```
+ The success of above query is due to we filtered on `:name`, and there are 
+ only one item in `:persons` has the value of "Alan."
 
 ### Using same named lvar multiple times to join
 
@@ -97,11 +102,9 @@
   all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
   in-stock value:
 ```clojure
-((qfn '{:persons [{:name "Alan"}]
-        :fruits  [{:name ?fruit-name :in-stock ?in-stock}]
-        :likes   [{:person-name "Alan" :fruit-name ?fruit-name}]}
-      ?in-stock)
- person&fruits) ;=> 10
+(def q2 (qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x])) ;=> #'introduction/q2
+(q2 {:a 1 :b {:c 5 :d 1}}) ;=> [5 1]
+(q2 {:a 1 :b {:c 5 :d 2}}) ;=> [nil nil]
 ```
  ## Pattern Options
 
@@ -118,7 +121,8 @@
  The easiest option is `:not-found`, it provides a default value if a value is not
  found.
 ```clojure
-((qfn '{(:a :not-found 0) ?a} ?a) {:b 3}) ;=> 0
+((qfn '{(:a :not-found 0) ?a} ?a)
+ {:b 3}) ;=> 0
 ```
  #### `:when` option
 
@@ -136,7 +140,8 @@
 
  You can combine options together, they will be applied by their order:
 ```clojure
-((qfn {(list :a :when even? :not-found 0) '?} &?) {:a -1 :b 3}) ;=> {:a 0}
+((qfn {(list :a :when even? :not-found 0) '?} &?)
+ {:a -1 :b 3}) ;=> {:a 0}
 ```
  ### Pattern options requires values be a specific type
 
@@ -145,13 +150,15 @@
  If you are about to match a big sequence, you might want to do pagination. 
  It is essential if your values are lazy (sequential).
 ```clojure
-((qfn '{(:a :seq [5 5]) ?} &?) {:a (range 1000)}) ;=> {:a (5 6 7 8 9)}
+((qfn '{(:a :seq [5 10]) ?} &?)
+ {:a (range 1000)}) ;=> {:a (5 6 7 8 9 10 11 12 13 14)}
 ```
  The design of putting options in the key part of the patterns, enable us
  to do nested query.
 ```clojure
 (def range-data {:a (map (fn [i] {:b i}) (range 100))}) ;=> #'introduction/range-data
-((qfn '{(:a :seq [5 5]) [{:b ?} ?bs]} (map :b ?bs)) range-data) ;=> (5 6 7 8 9)
+((qfn '{(:a :seq [90 5]) [{:b ?} ?bs]} (map :b ?bs))
+ range-data) ;=> (90 91 92 93 94)
 ```
  #### `:with` and `:batch` options
 
@@ -159,12 +166,13 @@
  can apply arguments to it, `:with` enable you to do it:
 ```clojure
 (defn square [x] (* x x)) ;=> #'introduction/square
-((qfn '{(:a :with [5]) ?a} ?a) {:a square}) ;=> 25
+((qfn '{(:a :with [5]) ?a} ?a)
+ {:a square}) ;=> 25
 ```
  And `:batch` will apply many times on it, as if it is a sequence:
 ```clojure
-((qfn {(list :a :batch (mapv vector (range 100)) :seq [5 5]) '?a} ?a)
- {:a square}) ;=> (25 36 49 64 81)
+((qfn {(list :a :batch (mapv vector (range 100)) :seq [40 5]) '?a} ?a)
+ {:a square}) ;=> (1600 1681 1764 1849 1936)
 ```
   These options not just for convinience, if the embeded functions invoked by 
   a query has side effects, these options could do 
@@ -179,20 +187,24 @@
 @a ;=> 5
 ```
   ## Malli schema support
-  Lasagna-pull has optional for support [malli](https://github.com/metosin/malli) schemas.
+  Lasagna-pull has optional support for [malli](https://github.com/metosin/malli) schemas.
   In Clojure, by put malli in your dependencies, it automatically checks your data
   pattern when you make queries to make sure the syntax is correct.
+
   Your query patterns not only follow the rules of pattern, it also should conform 
   to your data schema. It is especially important when you want to expose your data to
   the external world.
+
   `with-data-schema` macro let you include your customized data schema (applies to your data),
   then in the body, Lasagna-pull do a deeper check for the pattern. Try to find if 
   the query pattern conforms to the meaning of data schema (in terms of each value
   and your data structrue).
 ```clojure
+(defmacro try! [& body] `(try ~@body (catch Throwable e# #:error{:msg (ex-message e#)}))) ;=> #'introduction/try!
 (def my-data-schema [:map [:a :int] [:b :keyword]]) ;=> #'introduction/my-data-schema
-(pull/with-data-schema my-data-schema
-  (qfn '{:c ?c} ?c)) ;throws=>#:error{:type clojure.lang.ExceptionInfo, :message "Wrong pattern", :data {:schema #object[sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400 0x616fb276 "sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400@616fb276"], :value {:c ?c}, :errors ({:path [:c], :in [:c], :schema #object[sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400 0x52c78cf7 "sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400@52c78cf7"], :value [?c], :type :malli.core/extra-key})}}
+(try!
+ (pull/with-data-schema my-data-schema
+   (qfn '{:c ?c} ?c))) ;throws=>#:error{:type clojure.lang.Compiler$CompilerException, :message "Syntax error compiling at (0:0).", :data #:clojure.error{:phase :compile-syntax-check, :line 0, :column 0, :source "NO_SOURCE_PATH"}}
 ```
   The above throws an exception! Because once you specified a data schema, you only
   allow users to query values documented in the schema (i.e. closeness of map). 
@@ -200,27 +212,31 @@
 
  Lasagna-pull try to find all schema problems:
 ```clojure
-(pull/with-data-schema my-data-schema
-  (qfn '{(:a :not-found "3") ?} &?)) ;throws=>#:error{:type clojure.lang.ExceptionInfo, :message "Wrong pattern", :data {:schema #object[sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400 0x66dcab95 "sg.flybot.pullable.schema$pattern_map_schema$reify$reify__22400@66dcab95"], :value {(:a :not-found "3") ?}, :errors ({:path [0 0 1 1], :in [:a 1], :schema :int, :value "3"})}}
+(try!
+ (pull/with-data-schema my-data-schema
+   (qfn '{(:a :not-found "3") ?} &?))) ;throws=>#:error{:type clojure.lang.Compiler$CompilerException, :message "Syntax error compiling at (0:0).", :data #:clojure.error{:phase :compile-syntax-check, :line 0, :column 0, :source "NO_SOURCE_PATH"}}
 ```
 
   The above code also triggers an exception, because `:a` is an `:int` as in the data schema,
   while you provide a `:not-found` pattern option value which is not an integer.
 
- ## Real world usage and some history
+  ## Real world usage and some history
   
   In Flybot, we use [fun-map](https://github.com/robertluo/fun-map) extensively.
   In a typical server backend, we put everything mutable into a single map called
   `system`, including atoms, databases even web server itself. The fun-map library
   manages the lifecycles of these components, injects dependencies among them.
+
   Then we add database queries into `system`, they relies on databases, so the 
   database value (we use Datomic) or connection (if using SQL databases) will be
   injected by fun-maps `fnk`, and while developing, we can easyly replace the
   db connection by mocked values.
+
   Most of the queries not just require database itself, also input from user requests,
   so in the ring handler (of course, in `system`), we `merge` http request to 
   `system`, this merged version then will be used to be the source of all possible
   data.
+
   The next problem is how to let user to fetch, we are not satisfied with conventional
   REST style, GraphQL is good, but it adds too much unneccesary middle layers in my
   opinion, for example, we need to write many resolvers in order to glue it to backend
@@ -230,12 +246,19 @@
   construct a data pattern (basic idea and syntax is similar to
   [EQL](https://github.com/edn-query-language/eql)) to pull data from the request
   enriched `system`.
+
   However, the syntax of pull does not go very well with deep and complex data
   structures (because database information also translated into fields), and it 
   just returns a trimmed version of the original map, users often need to walk the
   returned value again to find out the pieces of information by themselves.
+
   Lasagna-pull introduces a new designed query pattern in order to address
   these problems.
+
+ ## Development
+
+ - Run `clojure -T:build ci`.
+ - This project's uses a lot of [rct tests](https://github.com/robertluo/rich-comment-tests).
 
  ## About this README
 

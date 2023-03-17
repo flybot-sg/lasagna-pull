@@ -10,7 +10,7 @@
             [sg.flybot.pullable.pattern :as ptn] 
             [sg.flybot.pullable.util :as util]))
 
-;;## APIs
+;; ## APIs
 
 (def ^:dynamic *data-schema* nil)
 
@@ -105,6 +105,11 @@
 
 ^:rct/test
 (comment
+  ;;logical vars only bound on succeeding
+  ((qfn '[{:a ?a :b 2}] ?a)
+   [{:a 1 :b 1} {:a 2 :b 2} {:a 3 :b 1}]) ;=> 2
+  ;;failed
+  ((qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x]) {:a 1 :b {:c 2 :d 2}}) ;=> [nil nil]
   ;;testing context
   (defn my-ctx []
     (let [shared (transient [])]
@@ -120,7 +125,7 @@
 #?(:clj
    (defmacro with-data-schema 
      [schema & body]
-     `(with-bindings {~(var *data-schema*) ~schema}
+     `(binding [*data-schema* ~schema]
         ~@body)))
 
 ^:rct/test
