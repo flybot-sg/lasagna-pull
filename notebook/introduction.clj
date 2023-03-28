@@ -7,9 +7,9 @@
 ;;[![Code Coverage](https://codecov.io/gh/flybot-sg/lasagna-pull/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/lasagna-pull)
 ;;[![Clojars](https://img.shields.io/clojars/v/sg.flybot/lasagna-pull.svg)](https://clojars.org/sg.flybot/lasagna-pull)
 ;;[![CljDoc](https://cljdoc.org/badge/sg.flybot/lasagna-pull)](https://cljdoc.org/d/sg.flybot/lasagna-pull)
-
-;;## Problem
-
+;;
+;;## The Problem
+;;
 ;; Let's see some data copied from deps.edn:
 
 (def data {:deps
@@ -39,9 +39,9 @@
   (concat global-path dev-extra-path test-extra-path))
 
 ;; We have to call `get`/`get-in` multiple times manually.
-
-;;## Bring Lasagna-pull in
-
+;;
+;; ## Lasagna-Pull way
+;; 
 ;; Using lasagna-pull, we can do it in a more intuitive way:
 
 ((qfn '{:deps {:paths   ?global
@@ -67,8 +67,8 @@
 
 ;; The unnamed binding `?` in the pattern is a placeholder, it will appear
 ;; in `&?`.
-
-;;### Sequence of maps
+;; 
+;; ### Sequence of maps
 ;;
 ;; The pattern to select inside the sequence of the maps just look like the data itself:
 
@@ -89,7 +89,8 @@
 ((qfn '{:persons [{:name ?} ?names]} (map :name ?names))
  person&fruits)
 
-;;### Filter a value
+;; 
+;; ### Filter a value
 ;;
 ;;  Sometimes, we need filtering a map on some keys. It feels very intuitive to specific
 ;;  it in your pattern, let's find Alan's age:
@@ -99,18 +100,18 @@
 
 ;; The success of above query is due to we filtered on `:name`, and there are 
 ;; only one item in `:persons` has the value of "Alan."
-
+;; 
 ;;
-;;### Using same named lvar multiple times to join
+;; ### Using same named lvar multiple times to join
 ;;
 ;;  If a named lvar bound more than one time, its value has to be the same, otherwise
-;;  all matching fails. We can use this to achieve a join, let's find Alan's favorite fruit
-;;  in-stock value:
+;;  all matching fails. We can use this to join:
 
 (def q2 (qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x]))
 (q2 {:a 1 :b {:c 5 :d 1}})
 (q2 {:a 1 :b {:c 5 :d 2}})
 
+;; 
 ;; The second query above failed because `?x` bound twice and they do not agree with
 ;; each other.
 ;;
@@ -132,6 +133,7 @@
 ((qfn '{(:a :not-found 0) ?a} ?a)
  {:b 3})
 
+;; 
 ;; #### `:when` option
 ;;
 ;; `:when` option has a predict function as it argument, a match only succeed when this
@@ -150,6 +152,7 @@
 ((qfn {(list :a :when even? :not-found 0) '?} &?)
  {:a -1 :b 3})
 
+;; 
 ;; ### Pattern options requires values be a specific type
 ;;
 ;; #### `:seq` option
@@ -192,7 +195,7 @@
 @a
 
 ;;  ## Malli schema support
-
+;; 
 ;;  Lasagna-pull has optional support for [malli](https://github.com/metosin/malli) schemas.
 ;;  In Clojure, by put malli in your dependencies, it automatically checks your data
 ;;  pattern when you make queries to make sure the syntax is correct.
@@ -218,6 +221,7 @@
 ;;  Since `:c` is not included in the schema, querying `:c` is invalid.
 ;;
 ;; Lasagna-pull try to find all schema problems:
+
 (try!
  (pull/with-data-schema my-data-schema
    (qfn '{(:a :not-found "3") ?} &?)))
@@ -246,7 +250,7 @@
 ;;  REST style, GraphQL is good, but it adds too much unneccesary middle layers in my
 ;;  opinion, for example, we need to write many resolvers in order to glue it to backend
 ;;  data. 
-
+;; 
 ;;  The first attempt made was [juxt pull](https://github.com/juxt/pull),
 ;;  I contributed to the 0.2 version, used it in some projects, allowing users to 
 ;;  construct a data pattern (basic idea and syntax is similar to

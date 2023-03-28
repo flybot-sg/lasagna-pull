@@ -4,15 +4,15 @@
  {:dev
   {:extra-paths ["test" "dev"],
    :extra-deps
-   {metosin/malli {:mvn/version "0.10.2"},
+   {metosin/malli {:mvn/version "0.10.4"},
     com.bhauman/figwheel-main {:mvn/version "0.2.18"},
     io.github.robertluo/rich-comment-tests {:git/tag "v1.1.0", :git/sha "6d01d12"}}},
   :notebook {:extra-deps {io.github.nextjournal/clerk {:mvn/version "0.13.842"}}},
   :readme
-  {:extra-deps {io.github.robertluo/clerk-doc {:git/tag "v0.2.0", :git/sha "10cf0e0"}},
+  {:extra-deps {io.github.robertluo/clerk-doc {:git/tag "v0.2.1", :git/sha "d2b37f0"}},
    :exec-fn robertluo.clerk-doc/clj->md,
    :exec-args
-   {:from "notebook/introduction.clj", :to "README.md", :eval-code? true, :ai-improve? false}},
+   {:from "notebook/introduction.clj", :to "README.md", :eval-code? true, :ai-improve? true}},
   :test
   {:extra-deps
    {lambdaisland/kaocha {:mvn/version "1.80.1274"},
