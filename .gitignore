@@ -2,7 +2,7 @@
 .nrepl-*
 target/
 .rebel*
-.clj-kondo/
+.cache # clj-kondo and lsp cache
 .lsp/
 .calva/
 docs/
