@@ -8,6 +8,7 @@
 [![Code Coverage](https://codecov.io/gh/flybot-sg/lasagna-pull/branch/master/graph/badge.svg)](https://codecov.io/gh/flybot-sg/lasagna-pull)
 [![Clojars](https://img.shields.io/clojars/v/sg.flybot/lasagna-pull.svg)](https://clojars.org/sg.flybot/lasagna-pull)
 [![CljDoc](https://cljdoc.org/badge/sg.flybot/lasagna-pull)](https://cljdoc.org/d/sg.flybot/lasagna-pull)
+[![bb compatible](https://raw.githubusercontent.com/babashka/babashka/master/logo/badge.svg)](https://babashka.org)
 
 ## The Problem
 
@@ -77,9 +78,6 @@
                     :fruits [{:name "Apple", :in-stock 10}
                              {:name "Orange", :in-stock 0}]
                     :likes  [{:person-name "Alan" :fruit-name "Apple"}]}) ;=> #'introduction/person&fruits
-```
- The pattern to select inside the sequence of maps just look like the data itself:
-```clojure
 ((qfn '{:fruits [{:name ?}]} &?)
  person&fruits) ;=> {:fruits [{:name "Apple"} {:name "Orange"}]}
 ```
@@ -263,6 +261,17 @@
 
   Lasagna-pull introduces a new query pattern in order to address
   these problems.
+
+ ### vs [Meander Epsilon](https://github.com/noprompt/meander)
+
+ When we were developing Lasagna-Pull, we did not know of Meander's existence. 
+ The similarity in pattern and API is merely a coincidence. 
+
+ From my limited observation, Meander is actually a term rewrite language whose
+ concept originated from logical programming. It has a far broader range of 
+ applicable areas than just querying and matching data with patterns. 
+ Lasagna-Pull, on the other hand, is a practical effort aimed solely at data 
+ and pattern querying. 
 
  ## Development
 

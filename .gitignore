@@ -2,7 +2,6 @@
 .nrepl-*
 target/
 .rebel*
-.cache # clj-kondo and lsp cache
 .lsp/
 .calva/
 docs/
@@ -14,3 +13,6 @@ cljs-test-runner-out
 
 # vscode related
 .vscode/
+
+## clj-kondo imports and cache
+.clj-kondo/**/

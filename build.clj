@@ -18,15 +18,6 @@
       (cb/run-task [:dev :test])
       (cb/run-task [:dev :cljs-test])))
 
-(defn copy-clj-kondo-config
-  "copy clj-kondo definition to local dev env"
-  [opts]
-  (let [{:keys [lib] :as opts} (project opts)
-        config-dir (str "resources/clj-kondo.exports/" lib)]
-    (b/copy-dir {:src-dirs [config-dir]
-                 :target-dir ".clj-kondo"})
-    opts))
-
 (defn ci
   [opts]
   (-> opts
