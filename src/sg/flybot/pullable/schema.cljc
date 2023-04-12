@@ -41,7 +41,9 @@
   [schema]
   (let [args-trans (fn [s]
                      (case (m/type s)
-                       :cat (m/into-schema :tuple (m/properties s) (m/children s))
+                       :cat (if-let [children (seq (m/children s))]
+                              (m/into-schema :tuple (m/properties s) children)
+                              empty?)
                        :catn (m/into-schema :tuple (m/properties s) (map #(nth % 2) (m/children s)))
                        :else s))
         =>arg (fn [acc s]
@@ -73,6 +75,7 @@
   (try-val :int [:default 5]) ;=> nil
   (try-val :int [:default :ok]) ;=>> (complement nil?)  
   (try-val [:=> [:cat :int] :string] [:with [3]]) ;=> nil
+  (try-val [:=> [:cat] :string] [:with []]) ;=> nil
   )
 
 (defn- mark-ptn
@@ -259,11 +262,13 @@
   ;;with pattern can pick up function schema
   (def ptn-schema4 (pattern-schema-of [:map
                                        [:a [:=> [:cat :int :keyword] :int]]
-                                       [:b [:=> [:catn [:c :string]] :int]]]))
+                                       [:b [:=> [:catn [:c :string]] :int]]
+                                       [:c [:=> [:cat] :int]]]))
   (m/explain ptn-schema4 '{(:a :with [3 :foo]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:a :with [:ok :ok]) ?}) ;=>> (complement nil?)
   (m/explain ptn-schema4 '{(:b :with ["ok"]) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:b :with [3]) ?}) ;=>> (complement nil?)
+  (m/explain ptn-schema4 '{(:c :with []) ?}) ;=> nil
   (m/explain ptn-schema4 '{(:a :batch [[3, :foo] [4, :bar]]) ?}) ;=> nil
   
   ;;with pattern can nested
