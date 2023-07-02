@@ -27,6 +27,9 @@
 
       ;;guard with not-found
       {:a 1}           {(list :a :when even? :not-found 0) '?}  {'&? {:a 0}}
+      
+      ;;updating value in place
+      {:a 3}  {(list :a :-> (fn [x] (* x x))) '?} {'&? {:a 9}}
 
       ;;with option
       {:a inc}
