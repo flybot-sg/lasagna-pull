@@ -155,3 +155,20 @@
   (reset! a 5)
   @b ;=> 5
   )
+
+;;### :-> (update) option
+;; Takes an function as the argument (:proc/val): 
+;;    [:=> [:catn [:value :any]] :any]
+;; returns updated value
+
+(defmethod apply-post :->
+  [arg]
+  (assert-arg! fn? arg)
+  (fn [[k v]]
+    (let [f (:proc/val arg)]
+      [k (f v)])))
+
+^:rct/test
+(comment
+  ((apply-post {:proc/type :-> :proc/val inc}) [:a 1]) ;=> [:a 2]
+  )

@@ -7,7 +7,8 @@
    A query is a function which can extract k v from data."
   (:require
    [sg.flybot.pullable.util :refer [data-error error?]]
-   [sg.flybot.pullable.core.option :as option]))
+   [sg.flybot.pullable.core.option :as option]
+   [sg.flybot.pullable.core.context :as context]))
 
 (defprotocol Acceptor
   "An acceptor receives information"
@@ -31,12 +32,6 @@
   nil
   (-accept [_ _ _] nil))
 
-(defprotocol QueryContext
-  "A shared context between subqueries"
-  (-wrap-query [context query args]
-    "returns a wrapped query from `query` and optional arguments `args`")
-  (-finalize [context m] "returns a map when queries are done on map `m`"))
-
 (defn run-query
   "runs a query `q` on `data` using `acceptor` (when nil uses q's default acceptor)"
   ([q data]
@@ -48,7 +43,7 @@
   [q data]
   (let [fac  (-> q meta ::context)
         rslt (run-query q data)
-        m    (-finalize fac {})]
+        m    (context/-finalize fac {})]
     (when rslt (assoc m '&? rslt))))
 
 ;; Implementation
@@ -203,7 +198,7 @@
 
 (defn context-of
   ([modifier finalizer]
-   (reify QueryContext
+   (reify context/QueryContext
      (-wrap-query
        [_ q args]
        (reify DataQuery
@@ -247,8 +242,8 @@
 (comment
   (defn try-named [init k v]
     (let [fac (named-query-factory (transient init))]
-      (-> (-wrap-query fac (mock-query k v) ['?a]) (run-bind {}))
-      (-finalize fac {})))
+      (-> (context/-wrap-query fac (mock-query k v) ['?a]) (run-bind {}))
+      (context/-finalize fac {})))
   (try-named {} :foo "bar")  ;=> {?a "bar"}
   (try-named {'?a "none"} :foo "bar") ;=> {}
   (try-named {'?a "bar"} :foo "bar") ;=> {?a "bar"}
@@ -290,37 +285,22 @@
        (option/apply-post #:proc{:type pp-type :val pp-value})))
     q pp-pairs)))
 
-(defn composite-context
-  "returns a composite context which is composed by many contexts"
-  [contexts]
-  (reify
-    QueryContext
-    (-wrap-query [_ q args]
-      (reduce #(-wrap-query %2 % args) q contexts))
-    (-finalize [_ acc]
-      (reduce #(-finalize %2 %) acc contexts))))
-
-(extend-protocol QueryContext
-  nil
-  (-wrap-query [_ q _] q)
-  (-finalize [_ m] m))
-
 (defn query-maker
   "returns a query making function which takes a vector as argment and construct a query."
   [context]
   (let [named-fac (named-query-factory)
-        context (composite-context [context named-fac])
+        context (context/composite-context [context named-fac])
         f-map {:fn     fn-query
                :vec    vector-query
                :join   join-query
                :filter filter-query
                :seq    seq-query
-               :named  (fn [q & args] (-wrap-query named-fac q args))
+               :named  (fn [q & args] (context/-wrap-query named-fac q args))
                :deco   decorate-query}]
     (fn [[query-type & args]]
       (with-meta
         (let [f (get f-map query-type)]
           (if f
-            (-wrap-query context (apply f args) nil)
+            (context/-wrap-query context (apply f args) nil)
             (throw (ex-info "unknown query type" {:type query-type}))))
         {::context context}))))

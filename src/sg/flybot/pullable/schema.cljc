@@ -178,11 +178,12 @@
   alternative (a.k.a should not be allowed in the first place)"
   [schema]
   (let [t (m/type schema)]
-    (-> #_{:clj-kondo/ignore [:quoted-case-test-constant]}
-        (case t
-          'fn? [:=> [:cat :any] :any] 
-          schema)
-        (m/schema))))
+    (-> 
+     #_{:clj-kondo/ignore [:case-quoted-test]}
+     (case t
+       'fn? [:=> [:cat :any] :any] 
+       schema)
+     (m/schema))))
 
 ^:rct/test
 (comment
