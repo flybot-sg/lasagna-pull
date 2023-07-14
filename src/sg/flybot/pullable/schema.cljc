@@ -76,6 +76,7 @@
   (try-val :int [:default :ok]) ;=>> (complement nil?)  
   (try-val [:=> [:cat :int] :string] [:with [3]]) ;=> nil
   (try-val [:=> [:cat] :string] [:with []]) ;=> nil
+  (try-val [:=> [:cat [:map [:a :int]]] :string] [:with [{}]]) ;=>> (complement nil?)
   )
 
 (defn- mark-ptn
@@ -100,7 +101,7 @@
   [schema path o in acc]
   (if (seq o)
     [(cond-> schema (= :=> (m/type schema)) (-> m/children second))
-     ((m/-explainer (m/schema (options-of schema)) path) o in acc)]
+     ((m/-explainer (m/schema (options-of (m/form schema))) path) o in acc)]
     [schema acc]))
 
 (defn- pattern-explainer
@@ -161,7 +162,7 @@
            (-options [_] (m/-options map-schema))
            (-children [_] (m/-entry-children entry-parser))
            (-parent [_] parent)
-           (-form [_] [:pattern-map (m/-form map-schema)])
+           (-form [_] (m/-form map-schema))
            m/EntrySchema
            (-entries [_] (m/-entry-entries entry-parser))
            (-entry-parser [_] entry-parser)
@@ -287,14 +288,19 @@
   ;;batch result testing
   (m/explain ptn-schema5 '{(:a :batch [[3] [2]]) {(:b :not-found "ok") ?}}) ;=> nil
   
-  (def ptn-schema6
+  ;;for with pattern, its input type will be checked
+  (def ptn-schema6 (pattern-schema-of [:map [:a [:=> [:cat [:map [:b1 :int]]] :string]]]))
+  (m/explain ptn-schema6 '{(:a :with [{}]) ?}) ;=>> {:errors #(= 1 (count %))}
+  
+  (def ptn-schema7
     (pattern-schema-of
      [:sequential
       [:map
        [:name :string]
        [:op [:=> [:cat :int] :int]]]]))
-  (m/explain ptn-schema6 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
-  )
+  (m/explain ptn-schema7 '[{:name "squre" (:op :with [3]) ?}])
+  ) ;=> nil
+  
 
 (defn check-pattern!
   "check `pattern` against `data-schema`, if not conform throwing an ExceptionInfo
