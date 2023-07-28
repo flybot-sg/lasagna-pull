@@ -92,15 +92,16 @@
    ((f pattern) data)))
 
 (defmacro qfn 
-  "returns an anonymous query function on `pattern`, all logical variables in the
-   pattern can be used in `body`. The whole query result stored in `&?`.
+  "returns an anonymous query function on `pattern` takes a single argument `data`:
+   Returns `nil` if failed to match, otherwise, all logical variables in the pattern
+   can be used in `body`. The whole query result stored in `&?`.
    See `query`'s documentation for syntax of the pattern." 
   {:style/indent 1}
   [pattern & body]
   (let [syms (-> (util/named-lvars-in-pattern pattern) vec)]
     `(let [q# (query ~pattern)]
        (fn [data#]
-         (let [{:syms ~syms} (q# data#)]
+         (when-let [{:syms ~syms} (q# data#)]
            ~@body)))))
 
 ^:rct/test
@@ -109,7 +110,7 @@
   ((qfn '[{:a ?a :b 2}] ?a)
    [{:a 1 :b 1} {:a 2 :b 2} {:a 3 :b 1}]) ;=> 2
   ;;failed
-  ((qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x]) {:a 1 :b {:c 2 :d 2}}) ;=> [nil nil]
+  ((qfn '{:a ?x :b {:c ?c :d ?x}} [?c ?x]) {:a 1 :b {:c 2 :d 2}}) ;=> nil
   ;;testing context
   (defn my-ctx []
     (let [shared (transient [])]
