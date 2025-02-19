@@ -189,7 +189,7 @@
                               (m/schema-walker
                                (fn [input-sch]
                                  (let [t (m/type input-sch)]
-                                   (if (= :map t)
+                                   (if (or (= :map t) (= :map-of t))
                                      (mu/update-properties input-sch assoc ::fn-input? true)
                                      input-sch)))))]
           [:=> tagged-inputs output])
@@ -339,10 +339,18 @@
   (m/explain ptn-schema7 '[{:name "squre" (:op :with [3]) ?}]) ;=> nil
 
   ;;for with pattern, input is not pullable so seq can pass
-  (def ptn-schema8 (pattern-schema-of [:map [:a [:=>
-                                                 [:cat [:sequential [:map [:b :int]]]]
-                                                 [:sequential [:map [:c :int]]]]]]))
-  (m/explain ptn-schema8 '{(:a :with [[{:b 1} {:b 2}]]) [{:c ?}]}) ;=> nil
+  (def ptn-schema8 (pattern-schema-of
+                    [:map
+                     [:a [:=>
+                          [:cat [:sequential
+                                 [:map-of
+                                  [:map [:b :int]]
+                                  [:map [:c :int]]]]]
+                          [:sequential [:map [:d :int]]]]]]))
+
+  (m/explain ptn-schema8 '{(:a :with [[{{:b 1} {:c 2}}
+                                       {{:b 1} {:c 2}}]])
+                           [{:d ?}]}) ;=> nil
   )
 
 (defn check-pattern!
