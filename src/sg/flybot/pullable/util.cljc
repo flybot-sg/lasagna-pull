@@ -2,7 +2,7 @@
 ; Apache License 2.0, http://www.apache.org/licenses/
 
 (ns sg.flybot.pullable.util
-  "misc utility functions" 
+  "misc utility functions"
   (:require [clojure.walk :as walk]))
 
 (defrecord DataError [data query-id reason])
@@ -25,8 +25,8 @@
 ^:rct/test
 (comment
   (data-error {} :k) ;=>> {:query-id :k}
-  (error? (data-error {} :k)) ;=> true
-  )
+  (error? (data-error {} :k))) ;=> true
+
 
 (defn named-lvar?
   "predict if `x` is a named logical value"
@@ -43,15 +43,15 @@
 
 ^:rct/test
 (comment
-  (named-lvars-in-pattern '{:a ? :b ?b :c ?c}) ;=> #{?b ?c &?}
-  )
+  (named-lvars-in-pattern '{:a ? :b ?b :c ?c})) ;=> #{?b ?c &?}
+
 
 
 ^:rct/test
 (comment
   (named-lvar? 3) ;=> false
-  (named-lvar? '?a) ;=>> some?
-  )
+  (named-lvar? '?a)) ;=>> some?
+
 
 ;; To avoid hard dependency of malli.
 ;; But this not work with ClojureScript.
@@ -65,9 +65,9 @@
      [require-clause if-body else-body]
      (if
       (try
-        (require require-clause)
+        (requiring-resolve require-clause)
         true
         (catch Exception _
           false))
-       if-body
-       else-body)))
+      if-body
+      else-body)))

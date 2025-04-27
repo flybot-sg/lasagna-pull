@@ -51,11 +51,10 @@
    (query pattern nil))
   ([pattern context]
    #?(:clj
-      #_{:clj-kondo/ignore [:unresolved-symbol]}
+      #_{:clj-kondo/ignore [:unresolved-namespace]}
       (util/optional-require
-       [sg.flybot.pullable.schema :as schema]
-       #_{:clj-kondo/ignore [:unresolved-namespace]}
-       (schema/check-pattern! *data-schema* pattern)
+       sg.flybot.pullable.schema/check-pattern!
+       (sg.flybot.pullable.schema/check-pattern! *data-schema* pattern)
        nil))
    (fn [data]
      (-> context
