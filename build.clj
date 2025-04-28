@@ -20,7 +20,9 @@
           [:license
            [:name "Apache-2.0"]
            [:url "https://www.apache.org/licenses/LICENSE-2.0.txt"]]]
-         [:organization "Flybot Pte Ltd"]]
+         [:organization 
+          [:name "Flybot Pte Ltd"]
+          [:url "https://flybot.sg"]]]
         opts (merge opts
                     {:basis (b/create-basis {})
                      :target "target"
