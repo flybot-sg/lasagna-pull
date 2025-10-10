@@ -14,6 +14,13 @@
 
 (def ^:dynamic *data-schema* nil)
 
+#?(:clj
+   (try
+     (require 'sg.flybot.pullable.schema)
+     (def check-pattern! (ns-resolve 'sg.flybot.pullable.schema 'check-pattern!))
+     (catch Exception e
+       (defn check-pattern! [data-schema pattern]))))
+
 (defn query
   "Returns a query function from `pattern`. A query function can be used to extract information
    from data. Query function takes `data` as its single argument, if data matches the pattern,
@@ -51,11 +58,7 @@
    (query pattern nil))
   ([pattern context]
    #?(:clj
-      #_{:clj-kondo/ignore [:unresolved-namespace]}
-      (util/optional-require
-       sg.flybot.pullable.schema/check-pattern!
-       (sg.flybot.pullable.schema/check-pattern! *data-schema* pattern)
-       nil))
+      (check-pattern! *data-schema* pattern))
    (fn [data]
      (-> context
          core/query-maker
