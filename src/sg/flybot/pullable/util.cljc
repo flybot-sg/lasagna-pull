@@ -51,23 +51,3 @@
 (comment
   (named-lvar? 3) ;=> false
   (named-lvar? '?a)) ;=>> some?
-
-
-;; To avoid hard dependency of malli.
-;; But this not work with ClojureScript.
-;; For Cljs developers, if want to use schema,
-;; has to require sg.flybot.pullable.schema manually.
-
-#?(:clj
-   (defmacro optional-require
-     "optionally try requre `require-clause`, if success, run `if-body`,
-   else `else-body`"
-     [require-clause if-body else-body]
-     (if
-      (try
-        (requiring-resolve require-clause)
-        true
-        (catch Exception _
-          false))
-      if-body
-      else-body)))
