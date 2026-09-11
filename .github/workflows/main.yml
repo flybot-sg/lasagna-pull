@@ -23,6 +23,16 @@ jobs:
       with:
         cli: '1.12.0.1530'
 
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install ClojureCLR
+      run: |
+        dotnet tool install --global Clojure.Main --version 1.12.6
+        dotnet tool install --global Clojure.Cljr --version 0.1.0-beta1
+        echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
     - uses: actions/cache@v4
       with:
         path: ~/.m2

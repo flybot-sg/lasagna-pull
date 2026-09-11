@@ -30,12 +30,20 @@
     (b/write-pom opts)
     opts))
 
+(defn clr-test
+  "Run the test suite on ClojureCLR via cljr."
+  [opts]
+  (let [{:keys [exit]} (b/process {:command-args ["cljr" "-X:test"]})]
+    (when-not (zero? exit) (System/exit exit))
+    opts))
+
 (defn tests
-  "run all tests, for clj and cljs."
+  "run all tests, for clj, cljs and clr."
   [opts]
   (-> opts
       (cb/run-task [:dev :test])
-      (cb/run-task [:dev :cljs-test])))
+      (cb/run-task [:dev :cljs-test])
+      (clr-test)))
 
 (defn ci
   [opts]

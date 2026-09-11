@@ -2,7 +2,8 @@
   (:require [sg.flybot.pullable.core.option :as sut]
             [sg.flybot.pullable.util :refer [error?]]
             [clojure.test :refer [deftest is]])
-  #?(:clj (:import [clojure.lang ExceptionInfo])))
+  #?@(:cljs []
+      :default [(:import [clojure.lang ExceptionInfo])]))
 
 (deftest apply-post-seq
   (is (thrown? ExceptionInfo (sut/apply-post #:proc{:type :seq :val 3})))
